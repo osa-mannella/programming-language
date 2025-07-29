@@ -1,11 +1,21 @@
 CC = gcc
 CFLAGS = -Wall -Wextra -std=c11 -g
 
-SRCS = src/main.c src/lexer.c
-OBJS = $(SRCS:.c=.o)
+SRC_DIR = src
+BUILD_DIR = build
 
-mirrow: $(OBJS)
-    $(CC) $(OBJS) -o mirrow
+SRCS = $(wildcard $(SRC_DIR)/*.c)
+OBJS = $(patsubst $(SRC_DIR)/%.c, $(BUILD_DIR)/%.o, $(SRCS))
+
+build: $(OBJS)
+	$(CC) $(CFLAGS) $(OBJS) -o $(BUILD_DIR)/mirrow
+
+$(BUILD_DIR)/%.o: $(SRC_DIR)/%.c
+	@mkdir -p $(BUILD_DIR)
+	$(CC) $(CFLAGS) -c $< -o $@
+
+run: build
+	$(BUILD_DIR)/mirrow $(ARGS)
 
 clean:
-    rm -f $(OBJS) mirrow
+	rm -rf $(BUILD_DIR)

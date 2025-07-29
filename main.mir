@@ -1,0 +1,5 @@
+func greet(name) {
+print(name)
+}
+
+greet("mommy")
