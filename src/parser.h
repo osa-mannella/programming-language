@@ -32,6 +32,7 @@ static ASTNode *parse_statement(Parser *parser);
 static ASTNode *parse_let_statement(Parser *parser);
 static ASTNode *parse_expression_statement(Parser *parser);
 static ASTNode *parse_function_statement(Parser *parser);
+static ASTNode *parse_match_statement(Parser *parser);
 static void parse_block(Parser *parser, ASTNode ***body_nodes, int *body_count);
 static void parse_parameter_list(Parser *parser, Token **params, int *param_count);
 

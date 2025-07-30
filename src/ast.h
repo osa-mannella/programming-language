@@ -16,27 +16,88 @@ typedef enum
   AST_LET_STATEMENT,
   AST_EXPRESSION_STATEMENT,
   AST_FUNCTION_STATEMENT,
-  AST_LAMBDA_EXPRESSION
+  AST_LAMBDA_EXPRESSION,
+  AST_MATCH_STATEMENT,
 } ASTNodeType;
 
 typedef struct ASTNode ASTNode;
+
+typedef struct
+{
+  ASTNode *pattern;
+  ASTNode *expression;
+} MatchArm;
 
 struct ASTNode
 {
   ASTNodeType type;
   union
   {
-    struct { Token token; } literal;
-    struct { Token op; ASTNode *right; } unary;
-    struct { ASTNode *left; Token op; ASTNode *right; } binary;
-    struct { Token name; } variable;
-    struct { ASTNode *expression; } grouping;
-    struct { Token name; ASTNode *value; } assignment;
-    struct { ASTNode *callee; ASTNode **arguments; int arg_count; } call;
-    struct { Token name; ASTNode *initializer; } let_statement;
-    struct { ASTNode *expression; } expression_statement;
-    struct { Token name; Token *params; int param_count; ASTNode **body; int body_count; } function_statement;
-    struct { Token *params; int param_count; ASTNode **body; int body_count; } lambda;
+    struct
+    {
+      Token token;
+    } literal;
+    struct
+    {
+      Token op;
+      ASTNode *right;
+    } unary;
+    struct
+    {
+      ASTNode *left;
+      Token op;
+      ASTNode *right;
+    } binary;
+    struct
+    {
+      Token name;
+    } variable;
+    struct
+    {
+      ASTNode *expression;
+    } grouping;
+    struct
+    {
+      Token name;
+      ASTNode *value;
+    } assignment;
+    struct
+    {
+      ASTNode *callee;
+      ASTNode **arguments;
+      int arg_count;
+    } call;
+    struct
+    {
+      Token name;
+      ASTNode *initializer;
+    } let_statement;
+    struct
+    {
+      ASTNode *expression;
+    } expression_statement;
+    struct
+    {
+      Token name;
+      Token *params;
+      int param_count;
+      ASTNode **body;
+      int body_count;
+    } function_statement;
+    struct
+    {
+      Token *params;
+      int param_count;
+      ASTNode **body;
+      int body_count;
+    } lambda;
+
+    struct
+    {
+      ASTNode *value;
+      MatchArm *arms;
+      int arm_count;
+    } match_statement;
   };
 };
 

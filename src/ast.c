@@ -61,7 +61,19 @@ void free_node(ASTNode *node)
         free(node->lambda.params);
         break;
     case AST_VARIABLE:
+        break;
     case AST_LITERAL:
+        break;
+    case AST_MATCH_STATEMENT:
+        free_node(node->match_statement.value);
+        for (int i = 0; i < node->match_statement.arm_count; i++)
+        {
+            free_node(node->match_statement.arms[i].pattern);
+            free_node(node->match_statement.arms[i].expression);
+        }
+        free(node->match_statement.arms);
+        break;
+
     case AST_ERROR:
         // nothing extra
         break;
@@ -194,6 +206,20 @@ void parser_print_ast_node(ASTNode *node)
                 printf("; ");
         }
         printf(" }");
+        break;
+    case AST_MATCH_STATEMENT:
+        printf("match ");
+        parser_print_ast_node(node->match_statement.value);
+        printf(" {\n");
+        for (int i = 0; i < node->match_statement.arm_count; i++)
+        {
+            printf("  ");
+            parser_print_ast_node(node->match_statement.arms[i].pattern);
+            printf(" -> ");
+            parser_print_ast_node(node->match_statement.arms[i].expression);
+            printf(",\n");
+        }
+        printf("}");
         break;
     }
 }

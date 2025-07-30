@@ -66,7 +66,91 @@ static ASTNode *parse_statement(Parser *parser)
   {
     return parse_function_statement(parser);
   }
+  if (parser->current.type == TOKEN_MATCH)
+  {
+    return parse_match_statement(parser);
+  }
   return parse_expression_statement(parser);
+}
+
+static ASTNode *parse_match_statement(Parser *parser)
+{
+  parser_advance(parser); // consume 'match'
+
+  // Parse the value/expression we're matching on
+  ASTNode *value = parse_expression(parser, 0);
+
+  if (parser->current.type != TOKEN_LBRACE)
+  {
+    printf("Parse error: Expected '{' after match value.\n");
+    parser->had_error = 1;
+    parser_free_ast(value);
+    return NULL;
+  }
+  parser_advance(parser); // consume '{'
+
+  // We'll store arms in a dynamic array (grow as needed)
+  int arms_capacity = 4;
+  int arms_count = 0;
+  MatchArm *arms = malloc(sizeof(MatchArm) * arms_capacity);
+
+  while (parser->current.type != TOKEN_RBRACE && parser->current.type != TOKEN_EOF)
+  {
+    // Parse the pattern (could be a literal, variable, etc)
+    ASTNode *pattern = parse_expression(parser, 0);
+
+    if (parser->current.type != TOKEN_ARROW)
+    {
+      printf("Parse error: Expected '->' after pattern in match arm.\n");
+      parser->had_error = 1;
+      parser_free_ast(pattern);
+      goto error_cleanup;
+    }
+    parser_advance(parser); // consume '->'
+
+    ASTNode *expr = parse_expression(parser, 0);
+
+    // Optional trailing comma
+    if (parser->current.type == TOKEN_COMMA)
+    {
+      parser_advance(parser);
+    }
+
+    // Grow arms array if needed
+    if (arms_count >= arms_capacity)
+    {
+      arms_capacity *= 2;
+      arms = realloc(arms, sizeof(MatchArm) * arms_capacity);
+    }
+    arms[arms_count].pattern = pattern;
+    arms[arms_count].expression = expr;
+    arms_count++;
+  }
+
+  if (parser->current.type != TOKEN_RBRACE)
+  {
+    printf("Parse error: Expected '}' after match arms.\n");
+    parser->had_error = 1;
+    goto error_cleanup;
+  }
+  parser_advance(parser); // consume '}'
+
+  ASTNode *node = malloc(sizeof(ASTNode));
+  node->type = AST_MATCH_STATEMENT;
+  node->match_statement.value = value;
+  node->match_statement.arms = arms;
+  node->match_statement.arm_count = arms_count;
+  return node;
+
+error_cleanup:
+  parser_free_ast(value);
+  for (int i = 0; i < arms_count; i++)
+  {
+    parser_free_ast(arms[i].pattern);
+    parser_free_ast(arms[i].expression);
+  }
+  free(arms);
+  return NULL;
 }
 
 static ASTNode *parse_expression_statement(Parser *parser)
@@ -407,6 +491,5 @@ ASTProgram parse(Parser *parser)
     }
     program.nodes[program.count++] = node;
   }
-
   return program;
 }

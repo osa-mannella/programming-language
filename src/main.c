@@ -15,6 +15,8 @@ int main(int argc, char *argv[])
   char *source = read_file(argv[1]);
   Lexer lexer;
   lexer_init(source, &lexer);
+  // lexer_debug(&lexer);
+  // return 0;
   Parser parser;
   parser_init(&parser, &lexer);
 
