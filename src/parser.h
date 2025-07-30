@@ -11,7 +11,9 @@ typedef enum {
   AST_GROUPING,
   AST_ASSIGNMENT,
   AST_CALL,
-  AST_ERROR
+  AST_ERROR,
+  AST_LET_STATEMENT,
+  AST_EXPRESSION_STATEMENT,
 } ASTNodeType;
 
 typedef struct ASTNode ASTNode;
@@ -60,6 +62,17 @@ struct ASTNode {
       ASTNode **arguments;
       int arg_count;
     } call;
+
+    // Let statement: let name = expression
+    struct {
+      Token name;
+      ASTNode *initializer;
+    } let_statement;
+
+    // Expression statement: expression
+    struct {
+      ASTNode *expression;
+    } expression_statement;
   };
 };
 
@@ -89,12 +102,15 @@ typedef struct {
 
 // Parser API
 void parser_init(Parser *parser, Lexer *lexer);
-ASTNode *parse_expression(Parser *parser, int precedence);
+static ASTNode *parse_expression(Parser *parser, int precedence);
 ASTProgram parse(Parser *parser); // entry point, returns root AST
 void parser_print_ast(ASTNode *node);
+static ASTNode *parse_statement(Parser *parser);
+static ASTNode *parse_let_statement(Parser *parser);
 void parser_free_ast(ASTNode *node);
+static ASTNode *parse_expression_statement(Parser *parser);
 
 // Lookup table for tokens → parse rules
-ParseRule *get_rule(TokenType type);
+static ParseRule *get_rule(TokenType type);
 
 #endif

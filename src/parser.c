@@ -7,6 +7,7 @@
 static ASTNode *parse_literal(Parser *parser, Token token);
 static ASTNode *parse_grouping(Parser *parser, Token token);
 static ASTNode *parse_binary(Parser *parser, ASTNode *left, Token token);
+static ASTNode *parse_variable(Parser *parser, Token token);
 
 #define MAX_TOKEN_TYPE 64
 #define INITIAL_CAPACITY 8
@@ -37,7 +38,7 @@ static void parser_advance(Parser *parser) {
   parser->current = lexer_next(parser->lexer);
 }
 
-ASTNode *parse_expression(Parser *parser, int precedence) {
+static ASTNode *parse_expression(Parser *parser, int precedence) {
   parser_advance(parser);
   ParseRule *prefix_rule = get_rule(parser->previous.type);
   if (!prefix_rule->nud) {
@@ -66,6 +67,48 @@ static ASTNode *parse_literal(Parser *parser, Token token) {
   return node;
 }
 
+static ASTNode *parse_statement(Parser *parser) {
+  if (parser->current.type == TOKEN_LET) {
+    return parse_let_statement(parser);
+  }
+  // You can add more statement types here (if, match, etc.)
+  return parse_expression_statement(parser);
+}
+
+static ASTNode *parse_expression_statement(Parser *parser) {
+  ASTNode *expr = parse_expression(parser, 0);
+  ASTNode *node = malloc(sizeof(ASTNode));
+  node->type = AST_EXPRESSION_STATEMENT;
+  node->expression_statement.expression = expr;
+  return node;
+}
+
+static ASTNode *parse_let_statement(Parser *parser) {
+  parser_advance(parser); // consume 'let'
+  Token name = parser->current;
+  if (parser->current.type != TOKEN_IDENTIFIER) {
+    printf("Parse error: Expected variable name after 'let'.\n");
+    parser->had_error = 1;
+    return NULL;
+  }
+  parser_advance(parser); // consume identifier
+
+  if (parser->current.type != TOKEN_EQUAL) {
+    printf("Parse error: Expected '=' after variable name.\n");
+    parser->had_error = 1;
+    return NULL;
+  }
+  parser_advance(parser); // consume '='
+
+  ASTNode *initializer = parse_expression(parser, 0);
+
+  ASTNode *node = malloc(sizeof(ASTNode));
+  node->type = AST_LET_STATEMENT;
+  node->let_statement.name = name;
+  node->let_statement.initializer = initializer;
+  return node;
+}
+
 static ASTNode *parse_grouping(Parser *parser, Token token) {
   ASTNode *expr = parse_expression(parser, 0);
   if (parser->current.type != TOKEN_RPAREN) {
@@ -78,6 +121,13 @@ static ASTNode *parse_grouping(Parser *parser, Token token) {
   ASTNode *node = malloc(sizeof(ASTNode));
   node->type = AST_GROUPING;
   node->grouping.expression = expr;
+  return node;
+}
+
+static ASTNode *parse_variable(Parser *parser, Token token) {
+  ASTNode *node = malloc(sizeof(ASTNode));
+  node->type = AST_VARIABLE;
+  node->variable.name = token;
   return node;
 }
 
@@ -118,6 +168,7 @@ static void init_parse_rules() {
   // Parentheses for grouping
   parse_rules[TOKEN_LPAREN].nud = parse_grouping;
   parse_rules[TOKEN_NUMBER].nud = parse_literal;
+  parse_rules[TOKEN_IDENTIFIER].nud = parse_variable;
 
   // Binary operators
   parse_rules[TOKEN_PLUS].led = parse_binary;
@@ -146,19 +197,16 @@ ASTProgram parse(Parser *parser) {
   program.capacity = INITIAL_CAPACITY;
 
   while (parser->current.type != TOKEN_EOF && !parser->had_error) {
-    ASTNode *node = parse_expression(parser, 0);
+    ASTNode *node = parse_statement(parser);
     if (!node)
-      break; // stop on error
+      break;
 
-    // Resize if needed
     if (program.count >= program.capacity) {
       program.capacity *= 2;
       program.nodes =
           realloc(program.nodes, sizeof(ASTNode *) * program.capacity);
     }
     program.nodes[program.count++] = node;
-
-    // Optionally: skip separators (like semicolons or newlines) here
   }
 
   return program;
@@ -184,6 +232,17 @@ void parser_print_ast(ASTNode *node) {
     printf("(");
     parser_print_ast(node->grouping.expression);
     printf(")");
+    break;
+  case AST_VARIABLE:
+    printf("%.*s", node->variable.name.length, node->variable.name.start);
+    break;
+  case AST_LET_STATEMENT:
+    printf("let %.*s = ", node->let_statement.name.length,
+           node->let_statement.name.start);
+    parser_print_ast(node->let_statement.initializer);
+    break;
+  case AST_EXPRESSION_STATEMENT:
+    parser_print_ast(node->expression_statement.expression);
     break;
   default:
     printf("<?>");

@@ -95,33 +95,35 @@ static Token identifier(Lexer *lexer) {
 
   int length = (int)(lexer->current - lexer->start);
 
-  // Keyword checks
+  // Keyword checks (only those supported)
   if (length == 3 && strncmp(lexer->start, "let", 3) == 0)
     return make_token(TOKEN_LET, lexer);
-  if (length == 5 && strncmp(lexer->start, "const", 5) == 0)
-    return make_token(TOKEN_CONST, lexer);
   if (length == 4 && strncmp(lexer->start, "func", 4) == 0)
     return make_token(TOKEN_FUNC, lexer);
   if (length == 2 && strncmp(lexer->start, "if", 2) == 0)
     return make_token(TOKEN_IF, lexer);
   if (length == 4 && strncmp(lexer->start, "else", 4) == 0)
     return make_token(TOKEN_ELSE, lexer);
-  if (length == 5 && strncmp(lexer->start, "while", 5) == 0)
-    return make_token(TOKEN_WHILE, lexer);
-  if (length == 6 && strncmp(lexer->start, "return", 6) == 0)
-    return make_token(TOKEN_RETURN, lexer);
-  if (length == 5 && strncmp(lexer->start, "break", 5) == 0)
-    return make_token(TOKEN_BREAK, lexer);
-  if (length == 8 && strncmp(lexer->start, "continue", 8) == 0)
-    return make_token(TOKEN_CONTINUE, lexer);
-  if (length == 3 && strncmp(lexer->start, "for", 3) == 0)
-    return make_token(TOKEN_FOR, lexer);
   if (length == 4 && strncmp(lexer->start, "true", 4) == 0)
     return make_token(TOKEN_TRUE, lexer);
   if (length == 5 && strncmp(lexer->start, "false", 5) == 0)
     return make_token(TOKEN_FALSE, lexer);
-  if (length == 4 && strncmp(lexer->start, "null", 4) == 0)
-    return make_token(TOKEN_NULL, lexer);
+  if (length == 5 && strncmp(lexer->start, "match", 5) == 0)
+    return make_token(TOKEN_MATCH, lexer);
+  if (length == 2 && strncmp(lexer->start, "fn", 2) == 0)
+    return make_token(TOKEN_FN, lexer);
+  if (length == 5 && strncmp(lexer->start, "async", 5) == 0)
+    return make_token(TOKEN_ASYNC, lexer);
+  if (length == 5 && strncmp(lexer->start, "await", 5) == 0)
+    return make_token(TOKEN_AWAIT, lexer);
+  if (length == 5 && strncmp(lexer->start, "throw", 5) == 0)
+    return make_token(TOKEN_THROW, lexer);
+  if (length == 3 && strncmp(lexer->start, "try", 3) == 0)
+    return make_token(TOKEN_TRY, lexer);
+  if (length == 5 && strncmp(lexer->start, "catch", 5) == 0)
+    return make_token(TOKEN_CATCH, lexer);
+  if (length == 6 && strncmp(lexer->start, "import", 6) == 0)
+    return make_token(TOKEN_IMPORT, lexer);
 
   return make_token(TOKEN_IDENTIFIER, lexer);
 }
@@ -256,15 +258,17 @@ Token lexer_next(Lexer *lexer) {
   case '|':
     if (match('|', lexer))
       return make_token(TOKEN_OR, lexer);
-    return error_token("Unexpected '|'.", lexer);
+    return make_token(TOKEN_PIPE, lexer);
 
   case '?':
     return make_token(TOKEN_QUESTION, lexer);
   case '#':
     return make_token(TOKEN_REFLECT, lexer);
+  case '_':
+    return make_token(TOKEN_UNDERSCORE, lexer);
+  case '$':
+    return make_token(TOKEN_DOLLAR, lexer);
   }
-
-  printf("Char: '%c' (ASCII %d)\n", c, (int)c);
 
   return error_token("Unexpected character.", lexer);
 }

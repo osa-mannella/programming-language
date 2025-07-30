@@ -10,30 +10,16 @@ const char *token_type_name(TokenType type) {
     return "TOKEN_STRING";
   case TOKEN_LET:
     return "TOKEN_LET";
-  case TOKEN_CONST:
-    return "TOKEN_CONST";
   case TOKEN_FUNC:
     return "TOKEN_FUNC";
   case TOKEN_IF:
     return "TOKEN_IF";
   case TOKEN_ELSE:
     return "TOKEN_ELSE";
-  case TOKEN_WHILE:
-    return "TOKEN_WHILE";
-  case TOKEN_RETURN:
-    return "TOKEN_RETURN";
-  case TOKEN_BREAK:
-    return "TOKEN_BREAK";
-  case TOKEN_CONTINUE:
-    return "TOKEN_CONTINUE";
-  case TOKEN_FOR:
-    return "TOKEN_FOR";
   case TOKEN_TRUE:
     return "TOKEN_TRUE";
   case TOKEN_FALSE:
     return "TOKEN_FALSE";
-  case TOKEN_NULL:
-    return "TOKEN_NULL";
   case TOKEN_EQUAL:
     return "TOKEN_EQUAL";
   case TOKEN_EQUAL_EQUAL:
@@ -92,6 +78,28 @@ const char *token_type_name(TokenType type) {
     return "TOKEN_EOF";
   case TOKEN_ERROR:
     return "TOKEN_ERROR";
+  case TOKEN_UNDERSCORE:
+    return "TOKEN_UNDERSCORE";
+  case TOKEN_MATCH:
+    return "TOKEN_MATCH";
+  case TOKEN_FN:
+    return "TOKEN_FN";
+  case TOKEN_DOLLAR:
+    return "TOKEN_DOLLAR";
+  case TOKEN_ASYNC:
+    return "TOKEN_ASYNC";
+  case TOKEN_AWAIT:
+    return "TOKEN_AWAIT";
+  case TOKEN_THROW:
+    return "TOKEN_THROW";
+  case TOKEN_TRY:
+    return "TOKEN_TRY";
+  case TOKEN_CATCH:
+    return "TOKEN_CATCH";
+  case TOKEN_IMPORT:
+    return "TOKEN_IMPORT";
+  case TOKEN_PIPE:
+    return "TOKEN_PIPE";
   default:
     return "TOKEN_UNKNOWN";
   }
