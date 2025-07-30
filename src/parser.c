@@ -109,11 +109,9 @@ static void init_parse_rules() {
     parse_rules[i].lbp = 0;
   }
 
-  // Literals (numbers, etc)
-  parse_rules[TOKEN_NUMBER].nud = parse_literal;
-
   // Parentheses for grouping
   parse_rules[TOKEN_LPAREN].nud = parse_grouping;
+  parse_rules[TOKEN_NUMBER].nud = parse_literal;
 
   // Binary operators
   parse_rules[TOKEN_PLUS].led = parse_binary;

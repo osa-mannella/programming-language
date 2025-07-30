@@ -4,12 +4,12 @@
 #include <stdio.h>
 #include <string.h>
 
+static int is_at_end(Lexer *lexer);
+
 void lexer_init(const char *source, Lexer *lexer) {
   lexer->start = source;
   lexer->current = source;
   lexer->line = 1;
-
-  lexer_debug(lexer);
 }
 
 void lexer_debug(Lexer *lexer) {
@@ -21,19 +21,38 @@ void lexer_debug(Lexer *lexer) {
   }
 }
 
-static char advance(Lexer *lexer) { return *lexer->current++; }
+static char advance(Lexer *lexer) {
+  if (is_at_end(lexer))
+    return '\0';
+  return *lexer->current++;
+}
 
-static char peek(Lexer *lexer) { return *lexer->current; }
+static char peek(Lexer *lexer) {
+  if (is_at_end(lexer))
+    return '\0';
+  return *lexer->current;
+}
 
-static char peek_next(Lexer *lexer) { return lexer->current[1]; }
+static char peek_next(Lexer *lexer) {
+  if (is_at_end(lexer))
+    return '\0';
+  return lexer->current[1];
+}
 
 static void skip_whitespace(Lexer *lexer) {
   for (;;) {
     char c = peek(lexer);
+
+    if (is_at_end(lexer)) {
+      break;
+    }
+
     if (c == ' ' || c == '\r' || c == '\t') {
       advance(lexer);
     } else if (c == '\n') {
       lexer->line++;
+      advance(lexer);
+    } else if (c < 32 && c != '\n' && c != '\r' && c != '\t') {
       advance(lexer);
     } else {
       break;
@@ -144,6 +163,9 @@ Token lexer_next(Lexer *lexer) {
     return make_token(TOKEN_EOF, lexer);
 
   char c = advance(lexer);
+  if (c == '\0') {
+    return make_token(TOKEN_EOF, lexer);
+  }
 
   // Identifiers and keywords
   if (isalpha(c) || c == '_') {
@@ -245,6 +267,8 @@ Token lexer_next(Lexer *lexer) {
   case '#':
     return make_token(TOKEN_REFLECT, lexer);
   }
+
+  printf("Char: '%c' (ASCII %d)\n", c, (int)c);
 
   return error_token("Unexpected character.", lexer);
 }
