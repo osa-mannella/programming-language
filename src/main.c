@@ -17,8 +17,6 @@ int main(int argc, char *argv[]) {
   parser_init(&parser, &lexer);
 
   ASTNode *ast = parse(&parser);
-  printf("Parser error: %d\n", parser.had_error);
-  printf("AST: %d\n", ast == NULL);
   parser_print_ast(ast);
   parser_free_ast(ast);
   free(source);

@@ -45,10 +45,6 @@ ASTNode *parse_expression(Parser *parser, int precedence) {
     return NULL;
   }
 
-  printf("Calling nud for token type %d ('%.*s'), nud pointer: %p\n",
-         parser->previous.type, parser->previous.length, parser->previous.start,
-         (void *)prefix_rule->nud);
-
   ASTNode *left = prefix_rule->nud(parser, parser->previous);
 
   while (precedence < get_rule(parser->current.type)->lbp &&
@@ -63,7 +59,6 @@ ASTNode *parse_expression(Parser *parser, int precedence) {
 }
 
 static ASTNode *parse_literal(Parser *parser, Token token) {
-  printf("parse_literal\n");
   ASTNode *node = malloc(sizeof(ASTNode));
   node->type = AST_LITERAL;
   node->literal.token = token;
@@ -71,7 +66,6 @@ static ASTNode *parse_literal(Parser *parser, Token token) {
 }
 
 static ASTNode *parse_grouping(Parser *parser, Token token) {
-  printf("parse_grouping\n");
   ASTNode *expr = parse_expression(parser, 0);
   if (parser->current.type != TOKEN_RPAREN) {
     printf("Parse error: Expected ')'.\n");
