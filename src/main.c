@@ -2,6 +2,7 @@
 #include <stdlib.h>
 
 #include "lexer.h"
+#include "parser.h"
 #include "utils.h"
 
 int main(int argc, char *argv[]) {
@@ -11,7 +12,13 @@ int main(int argc, char *argv[]) {
     return 1;
   }
   char *source = read_file(argv[1]);
-  lexer_init(source);
+  Lexer lexer;
+  lexer_init(source, &lexer);
   free(source);
+  Parser parser;
+  parser_init(&parser, &lexer);
+  ASTNode *ast = parse(&parser);
+  parser_print_ast(ast);
+  parser_free_ast(ast);
   return 0;
 }
