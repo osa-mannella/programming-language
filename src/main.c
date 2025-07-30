@@ -5,8 +5,10 @@
 #include "parser.h"
 #include "utils.h"
 
-int main(int argc, char *argv[]) {
-  if (argc < 2) {
+int main(int argc, char *argv[])
+{
+  if (argc < 2)
+  {
     fprintf(stderr, "Usage: %s <file>\n", argv[0]);
     return 1;
   }
@@ -17,8 +19,8 @@ int main(int argc, char *argv[]) {
   parser_init(&parser, &lexer);
 
   ASTProgram program = parse(&parser);
-  parser_print_ast(program.nodes[1]);
-  parser_free_ast(program.nodes[1]);
+  parser_print_ast(&program);
+  parser_free_ast(&program);
   free(source);
   return 0;
 }

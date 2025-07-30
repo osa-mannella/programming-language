@@ -1,2 +1,6 @@
+func main(boobs) {
+let x = 1 + boobs
+}
+
 1 + 4 * 8
-1 + x
+let x = 1 + x
