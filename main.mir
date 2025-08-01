@@ -1,3 +1,5 @@
+func test(test) {
 match test {
-4 -> IO.print("boobs")
+4 -> IO.print("mommy")
+}
 }

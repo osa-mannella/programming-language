@@ -6,54 +6,70 @@
 
 static int is_at_end(Lexer *lexer);
 
-void lexer_init(const char *source, Lexer *lexer) {
+void lexer_init(const char *source, Lexer *lexer)
+{
   lexer->start = source;
   lexer->current = source;
   lexer->line = 1;
 }
 
-void lexer_debug(Lexer *lexer) {
+void lexer_debug(Lexer *lexer)
+{
   Token t = lexer_next(lexer);
-  while (t.type != TOKEN_EOF) {
+  while (t.type != TOKEN_EOF)
+  {
     printf("Token: %s\n", token_type_name(t.type));
     t = lexer_next(lexer);
   }
 }
 
-static char advance(Lexer *lexer) {
+static char advance(Lexer *lexer)
+{
   if (is_at_end(lexer))
     return '\0';
   return *lexer->current++;
 }
 
-static char peek(Lexer *lexer) {
+static char peek(Lexer *lexer)
+{
   if (is_at_end(lexer))
     return '\0';
   return *lexer->current;
 }
 
-static char peek_next(Lexer *lexer) {
+static char peek_next(Lexer *lexer)
+{
   if (is_at_end(lexer))
     return '\0';
   return lexer->current[1];
 }
 
-static void skip_whitespace(Lexer *lexer) {
-  for (;;) {
+static void skip_whitespace(Lexer *lexer)
+{
+  for (;;)
+  {
     char c = peek(lexer);
 
-    if (is_at_end(lexer)) {
+    if (is_at_end(lexer))
+    {
       break;
     }
 
-    if (c == ' ' || c == '\r' || c == '\t') {
+    if (c == ' ' || c == '\r' || c == '\t')
+    {
       advance(lexer);
-    } else if (c == '\n') {
+    }
+    else if (c == '\n')
+    {
       lexer->line++;
       advance(lexer);
-    } else if (c < 32 && c != '\n' && c != '\r' && c != '\t') {
+    }
+    else if (c < 32 && c != '\n' && c != '\r' && c != '\t')
+    {
       advance(lexer);
-    } else {
+    }
+    else
+    {
       break;
     }
   }
@@ -61,7 +77,8 @@ static void skip_whitespace(Lexer *lexer) {
 
 static int is_at_end(Lexer *lexer) { return *lexer->current == '\0'; }
 
-static Token make_token(TokenType type, Lexer *lexer) {
+static Token make_token(TokenType type, Lexer *lexer)
+{
   Token t;
   t.type = type;
   t.start = lexer->start;
@@ -70,7 +87,8 @@ static Token make_token(TokenType type, Lexer *lexer) {
   return t;
 }
 
-static Token error_token(const char *msg, Lexer *lexer) {
+static Token error_token(const char *msg, Lexer *lexer)
+{
   Token t;
   t.type = TOKEN_ERROR;
   t.start = msg;
@@ -80,7 +98,8 @@ static Token error_token(const char *msg, Lexer *lexer) {
 }
 
 // Match and advance if the next character is expected
-static int match(char expected, Lexer *lexer) {
+static int match(char expected, Lexer *lexer)
+{
   if (is_at_end(lexer))
     return 0;
   if (*lexer->current != expected)
@@ -89,7 +108,8 @@ static int match(char expected, Lexer *lexer) {
   return 1;
 }
 
-static Token identifier(Lexer *lexer) {
+static Token identifier(Lexer *lexer)
+{
   while (isalnum(peek(lexer)) || peek(lexer) == '_')
     advance(lexer);
 
@@ -128,12 +148,14 @@ static Token identifier(Lexer *lexer) {
   return make_token(TOKEN_IDENTIFIER, lexer);
 }
 
-static Token number(Lexer *lexer) {
+static Token number(Lexer *lexer)
+{
   while (isdigit(peek(lexer)))
     advance(lexer);
 
   // Fractional part
-  if (peek(lexer) == '.' && isdigit(peek_next(lexer))) {
+  if (peek(lexer) == '.' && isdigit(peek_next(lexer)))
+  {
     advance(lexer); // consume '.'
     while (isdigit(peek(lexer)))
       advance(lexer);
@@ -142,8 +164,10 @@ static Token number(Lexer *lexer) {
   return make_token(TOKEN_NUMBER, lexer);
 }
 
-static Token string(Lexer *lexer) {
-  while (peek(lexer) != '"' && !is_at_end(lexer)) {
+static Token string(Lexer *lexer)
+{
+  while (peek(lexer) != '"' && !is_at_end(lexer))
+  {
     if (peek(lexer) == '\n')
       lexer->line++;
     advance(lexer);
@@ -156,7 +180,8 @@ static Token string(Lexer *lexer) {
   return make_token(TOKEN_STRING, lexer);
 }
 
-Token lexer_next(Lexer *lexer) {
+Token lexer_next(Lexer *lexer)
+{
   skip_whitespace(lexer);
 
   lexer->start = lexer->current;
@@ -166,22 +191,26 @@ Token lexer_next(Lexer *lexer) {
   char c = advance(lexer);
 
   // Identifiers and keywords
-  if (isalpha(c) || c == '_') {
+  if (isalpha(c) || c == '_')
+  {
     return identifier(lexer);
   }
 
   // Numbers
-  if (isdigit(c)) {
+  if (isdigit(c))
+  {
     return number(lexer);
   }
 
   // Strings
-  if (c == '"') {
+  if (c == '"')
+  {
     return string(lexer);
   }
 
   // Operators & single char tokens
-  switch (c) {
+  switch (c)
+  {
   // Brackets
   case '(':
     return make_token(TOKEN_LPAREN, lexer);
@@ -220,18 +249,23 @@ Token lexer_next(Lexer *lexer) {
   case '*':
     return make_token(TOKEN_STAR, lexer);
   case '/':
-    if (match('/', lexer)) {
+    if (match('/', lexer))
+    {
       while (peek(lexer) != '\n' && !is_at_end(lexer))
         advance(lexer);
       return lexer_next(lexer);
-    } else if (match('*', lexer)) {
+    }
+    else if (match('*', lexer))
+    {
       while (!(peek(lexer) == '*' && peek_next(lexer) == '/') &&
-             !is_at_end(lexer)) {
+             !is_at_end(lexer))
+      {
         if (peek(lexer) == '\n')
           lexer->line++;
         advance(lexer);
       }
-      if (!is_at_end(lexer)) {
+      if (!is_at_end(lexer))
+      {
         advance(lexer);
         advance(lexer);
       }
