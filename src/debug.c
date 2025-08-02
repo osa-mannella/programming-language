@@ -104,6 +104,8 @@ const char *token_type_name(TokenType type)
     return "TOKEN_PIPE";
   case TOKEN_PIPELINE:
     return "TOKEN_PIPELINE";
+  case TOKEN_LARROW:
+    return "TOKEN_LARROW";
   default:
     return "TOKEN_UNKNOWN";
   }

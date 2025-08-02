@@ -70,7 +70,7 @@ print(user.name) // "Alice"
 Because structs are immutable, updates return a **new struct**:
 
 ```mirrow
-let updatedUser = user { age = 31 }
+let updatedUser = user <- { age = 31 }
 print(updatedUser.age) // 31
 ```
 

@@ -1,7 +1,8 @@
 #ifndef LEXER_H
 #define LEXER_H
 
-typedef enum {
+typedef enum
+{
   TOKEN_IDENTIFIER,
   TOKEN_NUMBER,
   TOKEN_STRING,
@@ -51,17 +52,20 @@ typedef enum {
   TOKEN_TRY,
   TOKEN_CATCH,
   TOKEN_IMPORT,
-  TOKEN_PIPELINE
+  TOKEN_PIPELINE,
+  TOKEN_LARROW,
 } TokenType;
 
-typedef struct {
+typedef struct
+{
   TokenType type;
   const char *start;
   int length;
   int line;
 } Token;
 
-typedef struct {
+typedef struct
+{
   const char *start;
   const char *current;
   int line;

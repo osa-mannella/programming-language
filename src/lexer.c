@@ -231,6 +231,8 @@ Token lexer_next(Lexer *lexer)
   case '<':
     if (match('=', lexer))
       return make_token(TOKEN_LESS_EQUAL, lexer);
+    if (match('-', lexer))
+      return make_token(TOKEN_LARROW, lexer);
     return make_token(TOKEN_LESS, lexer);
 
   // Single-char operators and punctuation

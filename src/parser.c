@@ -83,7 +83,7 @@ error:
 
 static ASTNode *parse_struct_update(Parser *parser, ASTNode *base)
 {
-  // parser_advance(parser); // consume '{'
+  parser_advance(parser); // consume '{'
 
   Token *keys = NULL;
   ASTNode **values = NULL;
@@ -796,8 +796,8 @@ static void init_parse_rules()
   parse_rules[TOKEN_LPAREN].lbp = 30;
   parse_rules[TOKEN_DOT].led = led_dot;
   parse_rules[TOKEN_DOT].lbp = 40;
-  parse_rules[TOKEN_LBRACE].led = led_struct_update;
-  parse_rules[TOKEN_LBRACE].lbp = 50; // higher than assignment, lower than calls
+  parse_rules[TOKEN_LARROW].led = led_struct_update;
+  parse_rules[TOKEN_LARROW].lbp = 50; // higher than assignment, lower than calls
 }
 
 void parser_init(Parser *parser, Lexer *lexer)
