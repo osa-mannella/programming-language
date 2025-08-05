@@ -1,1 +1,1 @@
-let t = "test"
+IO.print("hi")

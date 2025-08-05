@@ -480,6 +480,21 @@ impl<'a> Parser<'a> {
         Some(ASTNode::ImportStatement { path })
     }
 
+    fn parse_property_access(&mut self, object: ASTNode, _token: Token) -> ParseResult {
+        // After '.', expect an identifier (the property name)
+        if self.current.kind != TokenKind::Identifier {
+            self.error("Expected property name after '.'");
+            return None;
+        }
+        let property = self.current.clone();
+        self.advance();
+
+        Some(ASTNode::PropertyAccess {
+            object: Box::new(object),
+            property,
+        })
+    }
+
     fn parse_if_expression(&mut self, _token: Token) -> ParseResult {
         let condition = self.parse_expression(0)?;
 
@@ -679,7 +694,17 @@ impl<'a> Parser<'a> {
             },
         );
 
-        // --- End of file/error fallback ---
+        rules.insert(
+            Dot,
+            ParseRule {
+                nud: None,
+                led: Some(Arc::new(|s, left, token| {
+                    s.parse_property_access(left, token)
+                })),
+                lbp: 40, // Give dot higher precedence than +, -, etc
+            },
+        );
+
         rules.insert(
             Eof,
             ParseRule {

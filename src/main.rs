@@ -32,9 +32,9 @@ fn main() {
     // Parse the program
     let program = parser.parse_program();
 
-    println!("{:?}", program);
+    //println!("{:?}", program);
     // Print AST
-    //program.print();
+    program.print();
 
     // (No need to manually free memory—Rust handles it)
 }

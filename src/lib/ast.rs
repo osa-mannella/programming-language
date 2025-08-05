@@ -20,10 +20,6 @@ pub enum ASTNode {
     Grouping {
         expression: Box<ASTNode>,
     },
-    Assignment {
-        name: Token,
-        value: Box<ASTNode>,
-    },
     Call {
         callee: Box<ASTNode>,
         arguments: Vec<ASTNode>,
@@ -127,28 +123,24 @@ impl ASTNode {
     pub fn print(&self) {
         use ASTNode::*;
         match self {
-            Literal { token } => print!("{:?}", token), // customize as needed
+            Literal { token } => print!("{:?}", token.value), // customize as needed
             Unary { op, right } => {
-                print!("{:?}(", op);
+                print!("{:?}(", op.value);
                 right.print();
                 print!(")");
             }
             Binary { left, op, right } => {
                 print!("(");
                 left.print();
-                print!(" {:?} ", op);
+                print!(" {:?} ", op.value);
                 right.print();
                 print!(")");
             }
-            Variable { name } => print!("{:?}", name),
+            Variable { name } => print!("{:?}", name.value),
             Grouping { expression } => {
                 print!("(");
                 expression.print();
                 print!(")");
-            }
-            Assignment { name, value } => {
-                print!("{:?} = ", name);
-                value.print();
             }
             Call { callee, arguments } => {
                 callee.print();
@@ -164,7 +156,7 @@ impl ASTNode {
             PropertyAccess { object, property } => {
                 object.print();
                 print!(".");
-                print!("{:?}", property);
+                print!("{:?}", property.value);
             }
             Error { message } => print!("<error: {}>", message),
             LetStatement { name, initializer } => {
