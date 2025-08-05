@@ -316,6 +316,6 @@ enum Shape {
 let circle = Shape::Circle { radius = 4 }
 
 match circle {
-    Shape::Circle [r] -> PI*r^2
+    Shape::Circle { radius } -> PI*r^2
 }
 ```

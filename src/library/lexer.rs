@@ -17,6 +17,7 @@ pub enum TokenKind {
     Await,
     Import,
     Enum,
+    Power,
 
     // Operators and punctuation
     Equal,
@@ -153,6 +154,7 @@ impl<'a> Lexer<'a> {
             "await" => (TokenKind::Await, TokenValue::None),
             "import" => (TokenKind::Import, TokenValue::None),
             "enum" => (TokenKind::Enum, TokenValue::None),
+            "fn" => (TokenKind::Fn, TokenValue::None),
             _ => (TokenKind::Identifier, TokenValue::Identifier(text)),
         };
 
@@ -489,6 +491,11 @@ impl<'a> Iterator for Lexer<'a> {
             }),
             Some('_') => Some(Token {
                 kind: TokenKind::Underscore,
+                value: TokenValue::None,
+                line: self.line,
+            }),
+            Some('^') => Some(Token {
+                kind: TokenKind::Power,
                 value: TokenValue::None,
                 line: self.line,
             }),

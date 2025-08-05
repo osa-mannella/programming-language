@@ -10,10 +10,6 @@ pub enum ASTNode {
         op: Token,
         right: Box<ASTNode>,
     },
-    Unary {
-        op: Token,
-        right: Box<ASTNode>,
-    },
     Variable {
         name: Token,
     },
@@ -27,9 +23,6 @@ pub enum ASTNode {
     PropertyAccess {
         object: Box<ASTNode>,
         property: Token,
-    },
-    Error {
-        message: String,
     },
     LetStatement {
         name: Token,
@@ -94,14 +87,28 @@ pub enum ASTNode {
         field_names: Vec<Token>,
         values: Vec<ASTNode>,
     },
-    DestructurePattern {
-        bindings: Vec<Token>,
+    EnumDeconstructPattern {
+        enum_name: Token,        // e.g., "Shape"
+        variant_name: Token,     // e.g., "Circle"
+        field_names: Vec<Token>, // e.g., ["radius"] (could be empty for unit variants)
+    },
+    AsyncFunctionStatement {
+        name: Token,
+        params: Vec<Token>,
+        body: Vec<ASTNode>,
+    },
+    AsyncLambdaExpression {
+        params: Vec<Token>,
+        body: Vec<ASTNode>,
+    },
+    AwaitExpression {
+        expression: Box<ASTNode>,
     },
 }
 
 #[derive(Debug, Clone)]
 pub struct MatchArm {
-    pub pattern: Box<ASTNode>,
+    pub patterns: Vec<ASTNode>,
     pub expression: Box<ASTNode>,
 }
 
@@ -123,12 +130,45 @@ impl ASTNode {
     pub fn print(&self) {
         use ASTNode::*;
         match self {
-            Literal { token } => print!("{:?}", token.value), // customize as needed
-            Unary { op, right } => {
-                print!("{:?}(", op.value);
-                right.print();
-                print!(")");
+            AsyncLambdaExpression { params, body } => {
+                print!("async fn(");
+                for (i, param) in params.iter().enumerate() {
+                    print!("{:?}", param.value);
+                    if i < params.len() - 1 {
+                        print!(", ");
+                    }
+                }
+                print!(") -> {{ ");
+                for (i, stmt) in body.iter().enumerate() {
+                    stmt.print();
+                    if i < body.len() - 1 {
+                        print!("; ");
+                    }
+                }
+                print!(" }}");
             }
+            AsyncFunctionStatement { name, params, body } => {
+                print!("async func {:?}(", name.value);
+                for (i, param) in params.iter().enumerate() {
+                    print!("{:?}", param.value);
+                    if i < params.len() - 1 {
+                        print!(", ");
+                    }
+                }
+                print!(") {{ ");
+                for (i, stmt) in body.iter().enumerate() {
+                    stmt.print();
+                    if i < body.len() - 1 {
+                        print!("; ");
+                    }
+                }
+                print!(" }}");
+            }
+            AwaitExpression { expression } => {
+                print!("await ");
+                expression.print();
+            }
+            Literal { token } => print!("{:?}", token.value), // customize as needed
             Binary { left, op, right } => {
                 print!("(");
                 left.print();
@@ -158,7 +198,6 @@ impl ASTNode {
                 print!(".");
                 print!("{:?}", property.value);
             }
-            Error { message } => print!("<error: {}>", message),
             LetStatement { name, initializer } => {
                 print!("let {:?} = ", name.value);
                 initializer.print();
@@ -208,7 +247,7 @@ impl ASTNode {
                 println!(" {{");
                 for arm in arms {
                     print!("  ");
-                    arm.pattern.print();
+                    arm.patterns.clone().into_iter().for_each(|p| p.print());
                     print!(" -> ");
                     arm.expression.print();
                     println!(",");
@@ -288,7 +327,7 @@ impl ASTNode {
                 name,
                 variant_names,
                 field_names,
-                field_counts,
+                field_counts: _,
             } => {
                 print!("enum {:?} {{\n", name);
                 for (i, (variant, fields)) in variant_names.iter().zip(field_names).enumerate() {
@@ -327,11 +366,15 @@ impl ASTNode {
                 print!(")");
             }
             BoolLiteral { value } => print!("{}", value),
-            DestructurePattern { bindings } => {
+            EnumDeconstructPattern {
+                field_names,
+                enum_name: _,
+                variant_name: _,
+            } => {
                 print!("(");
-                for (i, b) in bindings.iter().enumerate() {
+                for (i, b) in field_names.iter().enumerate() {
                     print!("{:?}", b);
-                    if i < bindings.len() - 1 {
+                    if i < field_names.len() - 1 {
                         print!(", ");
                     }
                 }

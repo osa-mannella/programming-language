@@ -66,6 +66,7 @@ impl<'a> Parser<'a> {
         let mut left = if let Some(nud) = nud {
             nud(self, self.previous.clone())
         } else {
+            println!("{:?}", self.previous.kind);
             self.error("Expected expression");
             return None;
         };
@@ -114,8 +115,10 @@ impl<'a> Parser<'a> {
         })
     }
 
-    fn parse_variable(&mut self, token: Token) -> ParseResult {
-        // TODO: parse enum constructor (like C)
+    fn parse_variable(&mut self, token: Token, parse_enum_constructor: bool) -> ParseResult {
+        if self.current.kind == TokenKind::DoubleColon && parse_enum_constructor {
+            return self.parse_enum_constructor_with_leading(token);
+        }
         Some(ASTNode::Variable { name: token })
     }
 
@@ -155,7 +158,16 @@ impl<'a> Parser<'a> {
 
         let mut arms = Vec::new();
         while self.current.kind != TokenKind::RBrace && self.current.kind != TokenKind::Eof {
-            let pattern = self.parse_expression(0)?;
+            let mut patterns = Vec::new();
+            patterns.push(self.parse_pattern()?);
+            while self.current.kind == TokenKind::Pipe {
+                self.advance();
+                patterns.push(self.parse_pattern()?);
+            }
+            if patterns.is_empty() {
+                self.error("Expected at least one pattern in match arm.");
+                return None;
+            }
             if self.current.kind != TokenKind::Arrow {
                 self.error("Expected '->' after pattern in match arm.");
                 return None;
@@ -169,7 +181,7 @@ impl<'a> Parser<'a> {
             }
 
             arms.push(super::ast::MatchArm {
-                pattern: Box::new(pattern),
+                patterns: patterns,
                 expression: Box::new(expr),
             });
         }
@@ -273,13 +285,51 @@ impl<'a> Parser<'a> {
         Some(ASTNode::FunctionStatement { name, params, body })
     }
 
+    fn parse_async(&mut self) -> ParseResult {
+        let kw = self.current.clone();
+        match kw.kind {
+            TokenKind::Func => {
+                self.advance(); // consume `func`
+                match self.parse_function_statement() {
+                    Some(ASTNode::FunctionStatement { name, params, body }) => {
+                        Some(ASTNode::AsyncFunctionStatement { name, params, body })
+                    }
+                    other => other,
+                }
+            }
+            TokenKind::Fn => {
+                self.advance(); // consume `fn`
+                let fn_tok = kw;
+                match self.parse_lambda_expression(fn_tok) {
+                    Some(ASTNode::LambdaExpression { params, body }) => {
+                        Some(ASTNode::AsyncLambdaExpression { params, body })
+                    }
+                    other => other,
+                }
+            }
+            _ => {
+                self.error("Expected 'func' or 'fn' after 'async'");
+                None
+            }
+        }
+    }
+
+    fn parse_await_expression(&mut self, _tok: Token) -> ParseResult {
+        let expr = self.parse_expression(0)?;
+        Some(ASTNode::AwaitExpression {
+            expression: Box::new(expr),
+        })
+    }
+
     fn parse_lambda_expression(&mut self, _token: Token) -> ParseResult {
+        // we’ve just consumed the `fn`
         if self.current.kind != TokenKind::LParen {
             self.error("Expected '(' after 'fn'.");
             return None;
         }
-        self.advance();
+        self.advance(); // consume '('
 
+        // gather parameters
         let mut params = Vec::new();
         while self.current.kind != TokenKind::RParen {
             if self.current.kind != TokenKind::Identifier {
@@ -297,31 +347,38 @@ impl<'a> Parser<'a> {
         }
         self.advance(); // consume ')'
 
+        // arrow
         if self.current.kind != TokenKind::Arrow {
             self.error("Expected '->' after lambda parameters.");
             return None;
         }
         self.advance(); // consume '->'
 
-        if self.current.kind != TokenKind::LBrace {
-            self.error("Expected '{' after '->' in lambda.");
-            return None;
-        }
-        self.advance();
-
+        // now decide whether this is a block or a single expression
         let mut body = Vec::new();
-        while self.current.kind != TokenKind::RBrace && self.current.kind != TokenKind::Eof {
-            if let Some(stmt) = self.parse_expression_statement() {
-                body.push(stmt);
-            } else {
-                break;
+        if self.current.kind == TokenKind::LBrace {
+            // block form: `{ … }`
+            self.advance(); // consume '{'
+            while self.current.kind != TokenKind::RBrace && self.current.kind != TokenKind::Eof {
+                if let Some(stmt) = self.parse_expression_statement() {
+                    body.push(stmt);
+                } else {
+                    break;
+                }
             }
+            if self.current.kind != TokenKind::RBrace {
+                self.error("Expected '}' at end of lambda block.");
+                return None;
+            }
+            self.advance(); // consume '}'
+        } else {
+            // single‐line form: just parse one expression and wrap it
+            let expr = self.parse_expression(0)?;
+            body.push(ASTNode::ExpressionStatement {
+                expression: Box::new(expr),
+            });
         }
-        if self.current.kind != TokenKind::RBrace {
-            self.error("Expected '}' at end of block.");
-            return None;
-        }
-        self.advance(); // consume '}'
+
         Some(ASTNode::LambdaExpression { params, body })
     }
 
@@ -478,7 +535,6 @@ impl<'a> Parser<'a> {
     }
 
     fn parse_property_access(&mut self, object: ASTNode, _token: Token) -> ParseResult {
-        // After '.', expect an identifier (the property name)
         if self.current.kind != TokenKind::Identifier {
             self.error("Expected property name after '.'");
             return None;
@@ -490,6 +546,75 @@ impl<'a> Parser<'a> {
             object: Box::new(object),
             property,
         })
+    }
+
+    fn parse_pattern(&mut self) -> Option<ASTNode> {
+        // Enum destructor pattern
+        if self.current.kind == TokenKind::Identifier {
+            let name = self.current.clone();
+            self.advance();
+            if self.current.kind == TokenKind::LParen {
+                let variable = self.parse_variable(name, false)?;
+                return self.parse_call(variable);
+            }
+            if self.current.kind == TokenKind::DoubleColon {
+                self.advance();
+
+                let variant_name = self.current.clone();
+                if variant_name.kind != TokenKind::Identifier {
+                    self.error("Expected variant name in enum pattern.");
+                    return None;
+                }
+                self.advance();
+
+                if self.current.kind == TokenKind::LBrace {
+                    let mut field_names = Vec::new();
+                    self.advance(); // skip '{'
+                    while self.current.kind != TokenKind::RBrace {
+                        if self.current.kind != TokenKind::Identifier {
+                            self.error("Expected field name in enum pattern.");
+                            return None;
+                        }
+                        field_names.push(self.current.clone());
+                        self.advance();
+
+                        if self.current.kind == TokenKind::Comma {
+                            self.advance();
+                        } else if self.current.kind != TokenKind::RBrace {
+                            self.error("Expected ',' or '}' in enum pattern.");
+                            return None;
+                        }
+                    }
+                    self.advance(); // skip '}'
+                    return Some(ASTNode::EnumDeconstructPattern {
+                        enum_name: name,
+                        variant_name,
+                        field_names,
+                    });
+                } else {
+                    // Unit variant (no fields)
+                    return Some(ASTNode::EnumDeconstructPattern {
+                        enum_name: name,
+                        variant_name,
+                        field_names: Vec::new(),
+                    });
+                }
+            }
+        }
+
+        // Literal pattern (number, string, boolean, etc.)
+        if matches!(
+            self.current.kind,
+            TokenKind::Number | TokenKind::String | TokenKind::True | TokenKind::False
+        ) {
+            let tok = self.current.clone();
+            self.advance();
+            return self.parse_literal(tok);
+        }
+
+        // Not a valid pattern
+        self.error("Invalid pattern: expected literal or enum deconstructor.");
+        None
     }
 
     fn parse_if_expression(&mut self, _token: Token) -> ParseResult {
@@ -514,6 +639,135 @@ impl<'a> Parser<'a> {
             condition: Box::new(condition),
             then_branch,
             else_branch,
+        })
+    }
+
+    fn parse_enum_constructor_with_leading(&mut self, enum_name: Token) -> ParseResult {
+        // At this point, self.current should be ColonColon
+        self.advance(); // skip '::'
+
+        // Parse variant name
+        let variant_name = self.current.clone();
+        if variant_name.kind != TokenKind::Identifier {
+            self.error("Expected variant name in enum constructor.");
+            return None;
+        }
+        self.advance();
+
+        let mut field_names = Vec::new();
+        let mut values = Vec::new();
+
+        if self.current.kind == TokenKind::LBrace {
+            self.advance();
+            while self.current.kind != TokenKind::RBrace {
+                // Parse field name
+                if self.current.kind != TokenKind::Identifier {
+                    self.error("Expected field name in enum constructor.");
+                    return None;
+                }
+                field_names.push(self.current.clone());
+                self.advance();
+
+                if self.current.kind != TokenKind::Equal {
+                    self.error("Expected '=' after field name in enum constructor.");
+                    return None;
+                }
+                self.advance();
+
+                if let Some(value) = self.parse_expression(0) {
+                    values.push(value);
+                } else {
+                    self.error("Expected value in enum constructor.");
+                    return None;
+                }
+
+                if self.current.kind == TokenKind::Comma {
+                    self.advance();
+                } else if self.current.kind != TokenKind::RBrace {
+                    self.error("Expected ',' or '}' in enum constructor.");
+                    return None;
+                }
+            }
+            self.advance(); // skip '}'
+        }
+
+        Some(ASTNode::EnumConstructor {
+            enum_name,
+            variant_name,
+            field_names,
+            values,
+        })
+    }
+
+    fn parse_enum_statement(&mut self) -> ParseResult {
+        let name = self.current.clone();
+        if name.kind != TokenKind::Identifier {
+            self.error("Expected enum name after 'enum'.");
+            return None;
+        }
+        self.advance();
+
+        if self.current.kind != TokenKind::LBrace {
+            self.error("Expected '{' after enum name.");
+            return None;
+        }
+        self.advance();
+
+        let mut variant_names = Vec::new();
+        let mut field_names = Vec::new();
+        let mut field_counts = Vec::new();
+
+        while self.current.kind != TokenKind::RBrace {
+            // Parse the variant name
+            if self.current.kind != TokenKind::Identifier {
+                self.error("Expected variant name in enum declaration.");
+                return None;
+            }
+            variant_names.push(self.current.clone());
+            self.advance();
+
+            let mut fields = Vec::new();
+
+            // Only allow struct-style fields (curly braces)
+            if self.current.kind == TokenKind::LBrace {
+                self.advance();
+                while self.current.kind != TokenKind::RBrace {
+                    if self.current.kind != TokenKind::Identifier {
+                        self.error("Expected field name in struct variant.");
+                        return None;
+                    }
+                    fields.push(self.current.clone());
+                    self.advance();
+
+                    if self.current.kind == TokenKind::Comma {
+                        self.advance();
+                    } else if self.current.kind != TokenKind::RBrace {
+                        self.error("Expected ',' or '}' in struct variant.");
+                        return None;
+                    }
+                }
+                self.advance(); // consume '}'
+            }
+
+            field_counts.push(fields.len());
+            field_names.push(fields);
+
+            // Comma or end of enum
+            if self.current.kind == TokenKind::Comma {
+                self.advance();
+            } else if self.current.kind != TokenKind::RBrace {
+                self.error("Expected ',' or '}' in enum declaration.");
+                return None;
+            }
+        }
+
+        self.advance(); // consume closing '}'
+
+        Some(ASTNode::EnumStatement {
+            name,
+            variant_names,
+            field_names,
+            field_counts,
         })
     }
 
@@ -574,7 +828,7 @@ impl<'a> Parser<'a> {
         rules.insert(
             Identifier,
             ParseRule {
-                nud: Some(Arc::new(|s, t| s.parse_variable(t))),
+                nud: Some(Arc::new(|s, t| s.parse_variable(t, true))),
                 led: None,
                 lbp: 0,
             },
@@ -645,6 +899,23 @@ impl<'a> Parser<'a> {
                 lbp: 0,
             },
         );
+        rules.insert(
+            Async,
+            ParseRule {
+                nud: Some(Arc::new(|s, _| s.parse_async())),
+                led: None,
+                lbp: 0,
+            },
+        );
+
+        rules.insert(
+            Await,
+            ParseRule {
+                nud: Some(Arc::new(|s, t| s.parse_await_expression(t))),
+                led: None,
+                lbp: 0,
+            },
+        );
         // Enum parsing can be added similarly if desired
 
         // --- Binary/infix operators ---
@@ -672,6 +943,15 @@ impl<'a> Parser<'a> {
                 lbp: 20,
             },
         );
+
+        rules.insert(
+            Power,
+            ParseRule {
+                nud: None,
+                led: Some(Arc::new(|s, l, t| s.parse_binary(l, t))),
+                lbp: 50, // Power has high precedence
+            },
+        );
         rules.insert(
             Slash,
             ParseRule {
@@ -689,6 +969,22 @@ impl<'a> Parser<'a> {
             },
         );
 
+        rules.insert(
+            Pipeline,
+            ParseRule {
+                nud: None,
+                led: Some(Arc::new(|s, l, t| s.parse_binary(l, t))),
+                lbp: 30, // Pipeline has high precedence
+            },
+        );
+        rules.insert(
+            Enum,
+            ParseRule {
+                nud: Some(Arc::new(|s, _| s.parse_enum_statement())),
+                led: None,
+                lbp: 0,
+            },
+        );
         rules.insert(
             Dot,
             ParseRule {
