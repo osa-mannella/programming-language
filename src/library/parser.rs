@@ -17,7 +17,7 @@ pub struct Parser<'a> {
     lexer: Lexer<'a>,
     current: Token,
     previous: Token,
-    had_error: bool,
+    pub had_error: bool,
     rules: HashMap<TokenKind, ParseRule<'a>>,
 }
 
@@ -35,7 +35,6 @@ impl<'a> Parser<'a> {
         parser
     }
 
-    // Utility: advance the parser to the next token
     fn advance(&mut self) {
         self.previous = self.current.clone();
         self.current = self.lexer.next().unwrap_or_else(|| Token::eof());
@@ -75,12 +74,11 @@ impl<'a> Parser<'a> {
             && self.current.kind != TokenKind::Eof
         {
             self.advance();
-            // Extract and clone the closure before calling it
             let led = self
                 .rules
                 .get(&self.previous.kind)
                 .and_then(|rule| rule.led.as_ref())
-                .map(|arc| Arc::clone(arc)); // <-- explicit clone of Arc
+                .map(|arc| Arc::clone(arc));
 
             if let Some(led) = led {
                 if let Some(l) = left {
@@ -94,7 +92,6 @@ impl<'a> Parser<'a> {
         left
     }
 
-    // --- Example rules ---
 
     fn parse_literal(&mut self, token: Token) -> ParseResult {
         Some(match &token.kind {
@@ -511,7 +508,7 @@ impl<'a> Parser<'a> {
     pub fn parse_program(&mut self) -> ASTProgram {
         let mut nodes = Vec::new();
         while self.current.kind != TokenKind::Eof && !self.had_error {
-            if let Some(stmt) = self.parse_expression_statement() {
+            if let Some(stmt) = self.parse_expression(0) {
                 nodes.push(stmt);
             } else {
                 break;
@@ -521,7 +518,7 @@ impl<'a> Parser<'a> {
     }
 
     fn parse_import_statement(&mut self) -> ParseResult {
-        self.advance(); // consume 'import'
+        // 'import' token is already consumed by the parser
 
         if self.current.kind != TokenKind::String {
             self.error("Parse error: Expected string literal after 'import'.");

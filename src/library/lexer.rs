@@ -4,7 +4,6 @@ pub enum TokenKind {
     Number,
     String,
 
-    // Keywords
     Let,
     Func,
     If,
@@ -19,7 +18,6 @@ pub enum TokenKind {
     Enum,
     Power,
 
-    // Operators and punctuation
     Equal,
     EqualEqual,
     BangEqual,
@@ -72,7 +70,6 @@ pub struct Token {
     pub kind: TokenKind,
     pub value: TokenValue,
     pub line: usize,
-    // Optionally add col, position, etc.
 }
 
 impl Token {
@@ -177,7 +174,6 @@ impl<'a> Lexer<'a> {
             }
         }
 
-        // Fractional part
         if self.peek() == Some('.')
             && self
                 .peek_next()
@@ -204,17 +200,18 @@ impl<'a> Lexer<'a> {
 
     fn lex_string(&mut self) -> Token {
         let mut text = String::new();
-        while let Some(c) = self.peek() {
+        while let Some(c) = self.current {
             if c == '"' {
                 break;
             }
             if c == '\n' {
                 self.line += 1;
             }
-            text.push(self.advance().unwrap());
+            text.push(c);
+            self.advance();
         }
 
-        if self.peek().is_none() {
+        if self.current.is_none() {
             return Token {
                 kind: TokenKind::Error,
                 value: TokenValue::Error("Unterminated string.".to_string()),
@@ -377,7 +374,6 @@ impl<'a> Iterator for Lexer<'a> {
             }),
             Some('/') => {
                 if self.match_char('/') {
-                    // Single-line comment
                     while let Some(ch) = self.peek() {
                         if ch == '\n' {
                             break;
@@ -386,7 +382,6 @@ impl<'a> Iterator for Lexer<'a> {
                     }
                     self.next()
                 } else if self.match_char('*') {
-                    // Multi-line comment
                     while let Some(ch) = self.peek() {
                         if ch == '*' && self.peek_next() == Some('/') {
                             self.advance();

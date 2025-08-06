@@ -1,13 +1,3 @@
-let x = { meow = true }
-enum Shape {
-Circle { radius }
-}
+import "IO"
 
-let x = Shape::Circle { radius = 4 }
-
-match x {
-Shape::Circle { radius } | Shape::Square { length } -> Math.PI * radius ^ 2
-}
-
-let b = async fn () -> b * b
-await b()
+IO.print("hello")

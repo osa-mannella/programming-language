@@ -41,7 +41,7 @@ let adder = fn (a, b) => a + b
 func add3(a, b, c) { a + b + c }
 let add1 = add3(1)
 let add1and2 = add1(2)
-print(add1and2(3)) // 6
+IO.print(add1and2(3)) // 6
 ```
 
 ### Reflection
@@ -49,9 +49,9 @@ print(add1and2(3)) // 6
 ```mirrow
 func greet(name) { "Hello " + name }
 let meta = #greet
-print(meta.name)    // "greet"
-print(meta.params)  // ["name"]
-print(meta.arity)   // 1
+IO.print(meta.name)    // "greet"
+IO.print(meta.params)  // ["name"]
+IO.print(meta.arity)   // 1
 ```
 
 ---
@@ -62,7 +62,7 @@ Structs in Mirrow are **lightweight dynamic objects**. They are created using ke
 
 ```mirrow
 let user = { name = "Alice", age = 30 }
-print(user.name) // "Alice"
+IO.print(user.name) // "Alice"
 ```
 
 ### Updating Structs
@@ -71,7 +71,7 @@ Because structs are immutable, updates return a **new struct**:
 
 ```mirrow
 let updatedUser = user <- { age = 31 }
-print(updatedUser.age) // 31
+IO.print(updatedUser.age) // 31
 ```
 
 ### Pattern Matching
@@ -102,9 +102,9 @@ let hasAge = has(user, "age") // true
 ```mirrow
 let x = 3
 match x {
-    1 -> print("one")
-    2 -> print("two")
-    _ -> print("other")
+    1 -> IO.print("one")
+    2 -> IO.print("two")
+    _ -> IO.print("other")
 }
 ```
 
@@ -113,8 +113,8 @@ match x {
 ```mirrow
 let person = { name = "Alice", age = 25 }
 match person {
-    [name, age] -> print("Name: " + name + ", Age: " + age)
-    _ -> print("No match")
+    [name, age] -> IO.print("Name: " + name + ", Age: " + age)
+    _ -> IO.print("No match")
 }
 ```
 
@@ -173,6 +173,7 @@ let greeting = $"Hello {name}, welcome!"
 ```mirrow
 import "math"
 import "./utils"
+import "IO"
 ```
 
 - Entry point is `main()` when running a file.

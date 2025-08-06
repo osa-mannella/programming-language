@@ -6,6 +6,7 @@
 [HEADER]
 [CONSTANT TABLE]
 [FUNCTION TABLE]
+[ENUM TABLE]
 [INSTRUCTION STREAM]
 ```
 
@@ -56,11 +57,36 @@ count = 2
 function 0 → name="hello", argc=0, locals=0, offset=12
 ```
 
-## 5. INSTRUCTION STREAM
+## 5. ENUM TABLE
 
-Flat sequence of opcodes and operands
+- **Count** (uint16)
+- For each enum:
 
-## 6. INSTRUCTIONS (v1)
+  - **Name index** (uint16) : index in constant table (the enum’s name)
+  - **Variant count** (uint8) : number of variants
+  - **Descriptor offset** (uint32) : byte offset into the variant‐descriptor region
+
+### Variant Descriptor Region
+
+Following all enum entries, a flat list of variant descriptors for each enum in order:
+
+- For each variant:
+
+  - **Variant name index** (uint16)
+  - **Field count** (uint8)
+
+## 6. INSTRUCTION STREAM
+
+A flat sequence of opcodes and operands. Each instruction is encoded as:
+
+- **Opcode** (1 byte, uint8) — selects the operation
+- **Operands** — zero or more fields immediately following the opcode, in the order shown below
+
+  - **uint8** (1 byte)
+  - **uint16** (2 bytes, little-endian)
+  - **uint32** (4 bytes, little-endian)
+
+## 7. INSTRUCTIONS (v1)
 
 ### Constants & Variables
 
