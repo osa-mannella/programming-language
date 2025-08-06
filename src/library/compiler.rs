@@ -6,7 +6,6 @@ use std::collections::HashMap;
 use std::fs;
 use std::path::Path;
 
-
 #[derive(Debug, Clone)]
 pub struct BytecodeHeader {
     pub magic: [u8; 4],
@@ -213,7 +212,6 @@ pub fn compile_program(ast: ASTProgram) -> BytecodeProgram {
         generate_instructions(&mut bytecode, &mut context, node);
     }
 
-
     if let Some(halt_opcode) = bytecode.get_opcode("halt") {
         bytecode.emit_instruction(halt_opcode);
     }
@@ -233,9 +231,14 @@ fn collect_declarations(
                 count_locals(body),
                 0, // offset - will be calculated during instruction generation phase
             );
-            context
-                .function_map
-                .insert(get_token_string(&name.value), func_index);
+            match get_identifier_string(&name.value) {
+                Ok(func_name) => {
+                    context.function_map.insert(func_name, func_index);
+                }
+                Err(err) => {
+                    eprintln!("Compile error: {}", err);
+                }
+            }
         }
 
         ASTNode::AsyncFunctionStatement { name, params, body } => {
@@ -244,9 +247,14 @@ fn collect_declarations(
                 count_locals(body),
                 0, // offset - will be calculated during instruction generation phase
             );
-            context
-                .function_map
-                .insert(get_token_string(&name.value), func_index);
+            match get_identifier_string(&name.value) {
+                Ok(func_name) => {
+                    context.function_map.insert(func_name, func_index);
+                }
+                Err(err) => {
+                    eprintln!("Compile error: {}", err);
+                }
+            }
         }
 
         ASTNode::EnumStatement {
@@ -255,13 +263,23 @@ fn collect_declarations(
             field_names,
             ..
         } => {
-            let enum_name_idx =
-                bytecode.add_constant(ConstantValue::String(get_token_string(&name.value)));
+            let enum_name_idx = match get_identifier_string(&name.value) {
+                Ok(enum_name) => bytecode.add_constant(ConstantValue::String(enum_name.clone())),
+                Err(err) => {
+                    eprintln!("Compile error: {}", err);
+                    return;
+                }
+            };
 
             let mut variants = Vec::new();
             for (variant_name, field_list) in variant_names.iter().zip(field_names.iter()) {
-                let variant_name_idx = bytecode
-                    .add_constant(ConstantValue::String(get_token_string(&variant_name.value)));
+                let variant_name_idx = match get_identifier_string(&variant_name.value) {
+                    Ok(variant_name) => bytecode.add_constant(ConstantValue::String(variant_name)),
+                    Err(err) => {
+                        eprintln!("Compile error: {}", err);
+                        continue;
+                    }
+                };
                 variants.push(EnumVariant {
                     name_index: variant_name_idx,
                     field_count: field_list.len() as u8,
@@ -269,9 +287,14 @@ fn collect_declarations(
             }
 
             let enum_index = bytecode.add_enum(enum_name_idx, variants);
-            context
-                .enum_map
-                .insert(get_token_string(&name.value), enum_index);
+            match get_identifier_string(&name.value) {
+                Ok(enum_name) => {
+                    context.enum_map.insert(enum_name, enum_index);
+                }
+                Err(err) => {
+                    eprintln!("Compile error: {}", err);
+                }
+            }
         }
 
         ASTNode::IfExpression {
@@ -320,7 +343,14 @@ fn collect_declarations(
         }
 
         ASTNode::ImportStatement { path } => {
-            let module_path = get_token_string(&path.value);
+            let module_path = match &path.value {
+                TokenValue::String(s) => s.clone(),
+                TokenValue::Identifier(s) => s.clone(),
+                _ => {
+                    eprintln!("Compile error: Import path must be a string or identifier");
+                    return;
+                }
+            };
 
             if !context.loaded_modules.contains_key(&module_path) {
                 if is_local_file_import(&module_path) {
@@ -354,8 +384,9 @@ fn collect_constants(bytecode: &mut BytecodeProgram, context: &CompileContext, n
     match node {
         ASTNode::Call { callee, .. } => {
             if let ASTNode::Variable { name } = callee.as_ref() {
-                if let Some(&_func_index) = context.function_map.get(&get_token_string(&name.value))
-                {
+                if let Ok(func_name) = get_identifier_string(&name.value) {
+                    if let Some(&_func_index) = context.function_map.get(&func_name) {
+                    }
                 }
             }
         }
@@ -540,23 +571,40 @@ fn generate_instructions(
 
             match callee.as_ref() {
                 ASTNode::Variable { name } => {
-                    let func_name = get_token_string(&name.value);
-
-                    if let Some(&func_index) = context.function_map.get(&func_name) {
-                        if let Some(call_opcode) = bytecode.get_opcode("call") {
-                            bytecode.emit_instruction_u8_u8(
-                                call_opcode,
-                                func_index as u8,
-                                arguments.len() as u8,
-                            );
+                    match get_identifier_string(&name.value) {
+                        Ok(func_name) => {
+                            if let Some(&func_index) = context.function_map.get(&func_name) {
+                                if let Some(call_opcode) = bytecode.get_opcode("call") {
+                                    bytecode.emit_instruction_u8_u8(
+                                        call_opcode,
+                                        func_index as u8,
+                                        arguments.len() as u8,
+                                    );
+                                }
+                            }
+                        }
+                        Err(err) => {
+                            eprintln!("Compile error: {}", err);
                         }
                     }
                 }
 
                 ASTNode::PropertyAccess { object, property } => {
                     if let ASTNode::Variable { name: module_name } = object.as_ref() {
-                        let module_name_str = get_token_string(&module_name.value);
-                        let function_name = get_token_string(&property.value);
+                        let module_name_str = match get_identifier_string(&module_name.value) {
+                            Ok(name) => name,
+                            Err(err) => {
+                                eprintln!("Compile error: {}", err);
+                                return;
+                            }
+                        };
+                        let function_name = match get_identifier_string(&property.value) {
+                            Ok(name) => name,
+                            Err(err) => {
+                                eprintln!("Compile error: {}", err);
+                                return;
+                            }
+                        };
 
                         if let Some(loaded_module) = context.loaded_modules.get(&module_name_str) {
                             if let Some(&func_index) =
@@ -610,16 +658,22 @@ fn generate_instructions(
         }
 
         ASTNode::Variable { name } => {
-            let var_name = get_token_string(&name.value);
-
-            // Check if it's a local variable first
-            if context.variable_map.contains_key(&var_name) {
-                load_variable(bytecode, context, &var_name);
-            } else {
-                // Fallback to global variable loading
-                let const_index = find_or_add_constant(bytecode, ConstantValue::String(var_name));
-                if let Some(load_global_opcode) = bytecode.get_opcode("load_global") {
-                    bytecode.emit_instruction_u16(load_global_opcode, const_index);
+            match get_identifier_string(&name.value) {
+                Ok(var_name) => {
+                    // Check if it's a local variable first
+                    if context.variable_map.contains_key(&var_name) {
+                        load_variable(bytecode, context, &var_name);
+                    } else {
+                        // Fallback to global variable loading
+                        let const_index =
+                            find_or_add_constant(bytecode, ConstantValue::String(var_name));
+                        if let Some(load_global_opcode) = bytecode.get_opcode("load_global") {
+                            bytecode.emit_instruction_u16(load_global_opcode, const_index);
+                        }
+                    }
+                }
+                Err(err) => {
+                    eprintln!("Compile error: {}", err);
                 }
             }
         }
@@ -632,50 +686,62 @@ fn generate_instructions(
         }
 
         ASTNode::FunctionStatement { name, body, .. } => {
-            let func_name = get_token_string(&name.value);
-            if let Some(&func_index) = context.function_map.get(&func_name) {
-                let offset = bytecode.current_offset();
-                bytecode.update_function_offset(func_index, offset);
+            match get_identifier_string(&name.value) {
+                Ok(func_name) => {
+                    if let Some(&func_index) = context.function_map.get(&func_name) {
+                        let offset = bytecode.current_offset();
+                        bytecode.update_function_offset(func_index, offset);
 
-                // Create new variable scope for function
-                let old_var_map = context.variable_map.clone();
-                let old_var_counter = context.variable_counter;
+                        // Create new variable scope for function
+                        let old_var_map = context.variable_map.clone();
+                        let old_var_counter = context.variable_counter;
 
-                for stmt in body {
-                    generate_instructions(bytecode, context, stmt);
+                        for stmt in body {
+                            generate_instructions(bytecode, context, stmt);
+                        }
+
+                        if let Some(return_opcode) = bytecode.get_opcode("return") {
+                            bytecode.emit_instruction(return_opcode);
+                        }
+
+                        // Restore previous scopes
+                        context.variable_map = old_var_map;
+                        context.variable_counter = old_var_counter;
+                    }
                 }
-
-                if let Some(return_opcode) = bytecode.get_opcode("return") {
-                    bytecode.emit_instruction(return_opcode);
+                Err(err) => {
+                    eprintln!("Compile error: {}", err);
                 }
-
-                // Restore previous scopes
-                context.variable_map = old_var_map;
-                context.variable_counter = old_var_counter;
             }
         }
 
         ASTNode::AsyncFunctionStatement { name, body, .. } => {
-            let func_name = get_token_string(&name.value);
-            if let Some(&func_index) = context.function_map.get(&func_name) {
-                let offset = bytecode.current_offset();
-                bytecode.update_function_offset(func_index, offset);
+            match get_identifier_string(&name.value) {
+                Ok(func_name) => {
+                    if let Some(&func_index) = context.function_map.get(&func_name) {
+                        let offset = bytecode.current_offset();
+                        bytecode.update_function_offset(func_index, offset);
 
-                // Create new variable scope for function
-                let old_var_map = context.variable_map.clone();
-                let old_var_counter = context.variable_counter;
+                        // Create new variable scope for function
+                        let old_var_map = context.variable_map.clone();
+                        let old_var_counter = context.variable_counter;
 
-                for stmt in body {
-                    generate_instructions(bytecode, context, stmt);
+                        for stmt in body {
+                            generate_instructions(bytecode, context, stmt);
+                        }
+
+                        if let Some(return_opcode) = bytecode.get_opcode("return") {
+                            bytecode.emit_instruction(return_opcode);
+                        }
+
+                        // Restore previous scopes
+                        context.variable_map = old_var_map;
+                        context.variable_counter = old_var_counter;
+                    }
                 }
-
-                if let Some(return_opcode) = bytecode.get_opcode("return") {
-                    bytecode.emit_instruction(return_opcode);
+                Err(err) => {
+                    eprintln!("Compile error: {}", err);
                 }
-
-                // Restore previous scopes
-                context.variable_map = old_var_map;
-                context.variable_counter = old_var_counter;
             }
         }
 
@@ -782,13 +848,11 @@ fn patch_jump_offset(bytecode: &mut BytecodeProgram, jump_addr: u32, target_addr
     }
 }
 
-fn get_token_string(value: &TokenValue) -> String {
+
+fn get_identifier_string(value: &TokenValue) -> Result<String, String> {
     match value {
-        TokenValue::Identifier(s) => s.clone(),
-        TokenValue::String(s) => s.clone(),
-        TokenValue::Number(n) => n.to_string(),
-        TokenValue::Error(e) => e.clone(),
-        TokenValue::None => String::new(),
+        TokenValue::Identifier(s) => Ok(s.clone()),
+        _ => Err("Expected identifier token for variable name".to_string()),
     }
 }
 
@@ -799,11 +863,16 @@ fn generate_let_statement(
     name: &crate::library::lexer::Token,
     initializer: &ASTNode,
 ) {
-    let variable_name = get_token_string(&name.value);
-
-    // Generate initializer expression and store in variable
-    generate_instructions(bytecode, context, initializer);
-    store_variable(bytecode, context, &variable_name);
+    match get_identifier_string(&name.value) {
+        Ok(variable_name) => {
+            // Generate initializer expression and store in variable
+            generate_instructions(bytecode, context, initializer);
+            store_variable(bytecode, context, &variable_name);
+        }
+        Err(err) => {
+            eprintln!("Compile error: {}", err);
+        }
+    }
 }
 
 /// Store a value from stack into a variable
@@ -844,8 +913,20 @@ fn generate_enum_constructor(
     field_names: &[crate::library::lexer::Token],
     values: &[ASTNode],
 ) {
-    let enum_name_str = get_token_string(&enum_name.value);
-    let variant_name_str = get_token_string(&variant_name.value);
+    let enum_name_str = match get_identifier_string(&enum_name.value) {
+        Ok(name) => name,
+        Err(err) => {
+            eprintln!("Compile error: {}", err);
+            return;
+        }
+    };
+    let variant_name_str = match get_identifier_string(&variant_name.value) {
+        Ok(name) => name,
+        Err(err) => {
+            eprintln!("Compile error: {}", err);
+            return;
+        }
+    };
 
     // Look up the enum in the context
     if let Some(&enum_index) = context.enum_map.get(&enum_name_str) {
@@ -911,15 +992,6 @@ fn generate_enum_constructor(
 fn compile(ast: ASTProgram) -> BytecodeProgram {
     compile_program(ast)
 }
-
-
-
-
-
-
-
-
-
 
 /// Check if the import path represents a local file
 fn is_local_file_import(module_path: &str) -> bool {
@@ -1023,20 +1095,34 @@ fn extract_module_definition(ast: &ASTProgram, module_name: &str) -> ModuleDefin
     for node in &ast.nodes {
         match node {
             ASTNode::FunctionStatement { name, params, .. } => {
-                functions.push(ModuleFunction {
-                    name: get_token_string(&name.value),
-                    arg_count: params.len() as u8,
-                    is_native: false, // User-defined function
-                    native_id: None,
-                });
+                match get_identifier_string(&name.value) {
+                    Ok(func_name) => {
+                        functions.push(ModuleFunction {
+                            name: func_name,
+                            arg_count: params.len() as u8,
+                            is_native: false, // User-defined function
+                            native_id: None,
+                        });
+                    }
+                    Err(err) => {
+                        eprintln!("Compile error: {}", err);
+                    }
+                }
             }
             ASTNode::AsyncFunctionStatement { name, params, .. } => {
-                functions.push(ModuleFunction {
-                    name: get_token_string(&name.value),
-                    arg_count: params.len() as u8,
-                    is_native: false, // User-defined async function
-                    native_id: None,
-                });
+                match get_identifier_string(&name.value) {
+                    Ok(func_name) => {
+                        functions.push(ModuleFunction {
+                            name: func_name,
+                            arg_count: params.len() as u8,
+                            is_native: false, // User-defined async function
+                            native_id: None,
+                        });
+                    }
+                    Err(err) => {
+                        eprintln!("Compile error: {}", err);
+                    }
+                }
             }
             // Could extend to extract constants, enums, etc.
             _ => {}
