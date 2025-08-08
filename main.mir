@@ -1,4 +1,4 @@
-// todo: add match statement struct destructuring, pipe operator
+// todo: add match statement struct destructuring (struct pattern matching), pipe operator
 
 enum Shape {
     Rectangle { length, width },
