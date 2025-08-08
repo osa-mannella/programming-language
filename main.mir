@@ -1,15 +1,3 @@
-// todo: add match statement struct destructuring (struct pattern matching), pipe operator
+// todo: add match statement struct destructuring (struct pattern matching), pipe operator, create a global module, add function calls to byte code
 
-enum Shape {
-    Rectangle { length, width },
-    Square { side },
-    Circle { radius },
-}
-
-let circle = Shape::Circle { radius = 4 }
-
-match circle {
-    Shape::Circle { radius } -> {
-        PI * r ^ 2
-    }
-}
+IO.print("test")
