@@ -24,7 +24,7 @@ func processUsers(ids) {
   users |> filter(fn(u) -> u.active)
 }
 
-func getUser(id) -> Result<User, Error> {
+func getUser(id) {
   let! userData = IO.readFile($"users/{id}.json")
   let! parsed = parseJSON(userData)
   validateUser(parsed)
