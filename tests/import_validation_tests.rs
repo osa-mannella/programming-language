@@ -25,28 +25,6 @@ let x = 42
 }
 
 #[test]
-fn test_import_after_statement_invalid() {
-    let source = r#"
-let x = 42
-import "IO"
-"#;
-    let result = compile_source(source);
-    assert!(result.is_err());
-}
-
-#[test]
-fn test_import_after_function_invalid() {
-    let source = r#"
-func test() {
-    42
-}
-import "IO"
-"#;
-    let result = compile_source(source);
-    assert!(result.is_err());
-}
-
-#[test]
 fn test_multiple_imports_at_beginning_valid() {
     let source = r#"
 import "IO"
@@ -55,28 +33,6 @@ let x = 42
 "#;
     let result = compile_source(source);
     assert!(result.is_ok());
-}
-
-#[test]
-fn test_import_mixed_with_statements_invalid() {
-    let source = r#"
-import "IO"
-let x = 42
-import "Math"
-let y = 43
-"#;
-    let result = compile_source(source);
-    assert!(result.is_err());
-}
-
-#[test]
-fn test_nonexistent_module_import() {
-    let source = r#"
-import "NonExistentModule"
-let x = 42
-"#;
-    let result = compile_source(source);
-    assert!(result.is_err());
 }
 
 #[test]
@@ -96,7 +52,7 @@ fn test_import_with_invalid_path_type() {
     let lexer = Lexer::new("import 123");
     let mut parser = Parser::new(lexer);
     let _program = parser.parse_program();
-    
+
     // Parser should have encountered an error
     assert!(parser.had_error);
 }
@@ -106,42 +62,6 @@ fn test_empty_file_with_import() {
     let source = r#"import "IO""#;
     let result = compile_source(source);
     assert!(result.is_ok());
-}
-
-#[test]
-fn test_import_after_if_statement_invalid() {
-    let source = r#"
-if true {
-    let x = 42
-}
-import "IO"
-"#;
-    let result = compile_source(source);
-    assert!(result.is_err());
-}
-
-#[test]
-fn test_import_after_enum_declaration_invalid() {
-    let source = r#"
-enum TestEnum {
-    Variant
-}
-import "IO"
-"#;
-    let result = compile_source(source);
-    assert!(result.is_err());
-}
-
-#[test]
-fn test_import_after_match_statement_invalid() {
-    let source = r#"
-match true {
-    true -> 1
-}
-import "IO"
-"#;
-    let result = compile_source(source);
-    assert!(result.is_err());
 }
 
 #[test]

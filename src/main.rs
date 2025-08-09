@@ -91,7 +91,13 @@ fn run_file(filename: &str) {
         exit(1);
     }
     
-    let bytecode = compile_program(program);
+    let bytecode = match compile_program(program) {
+        Ok(bytecode) => bytecode,
+        Err(e) => {
+            print_error(&format!("Compilation failed: {}", e));
+            exit(1);
+        }
+    };
     print_success("Compilation complete!");
     println!();
     print_bytecode_debug(&bytecode);
@@ -117,6 +123,12 @@ fn compile_only(filename: &str) {
         exit(1);
     }
     
-    let _bytecode = compile_program(program);
+    let _bytecode = match compile_program(program) {
+        Ok(bytecode) => bytecode,
+        Err(e) => {
+            print_error(&format!("Compilation failed: {}", e));
+            exit(1);
+        }
+    };
     print_success("Compilation successful! ✨");
 }

@@ -245,10 +245,26 @@ impl<'a> Parser<'a> {
         let mut arms = Vec::new();
         while self.current.kind != TokenKind::RBrace && self.current.kind != TokenKind::Eof {
             let mut patterns = Vec::new();
-            patterns.push(self.parse_pattern()?);
+            let first_pattern = self.parse_pattern()?;
+            patterns.push(first_pattern.clone());
+            
             while self.current.kind == TokenKind::Pipe {
+                // Check if the first pattern was a struct deconstruction
+                if matches!(first_pattern, ASTNode::StructDeconstructPattern { .. }) {
+                    self.error("Struct patterns cannot be combined with other patterns using OR operator.");
+                    return None;
+                }
+                
                 self.advance();
-                patterns.push(self.parse_pattern()?);
+                let next_pattern = self.parse_pattern()?;
+                
+                // Check if any pattern in the OR chain is a struct deconstruction
+                if matches!(next_pattern, ASTNode::StructDeconstructPattern { .. }) {
+                    self.error("Struct patterns cannot be combined with other patterns using OR operator.");
+                    return None;
+                }
+                
+                patterns.push(next_pattern);
             }
             if patterns.is_empty() {
                 self.error("Expected at least one pattern in match arm.");
@@ -678,6 +694,42 @@ impl<'a> Parser<'a> {
     }
 
     fn parse_pattern(&mut self) -> Option<ASTNode> {
+        // Wildcard pattern
+        if self.current.kind == TokenKind::Underscore {
+            self.advance();
+            return Some(ASTNode::WildcardPattern);
+        }
+
+        // Struct deconstruction pattern
+        if self.current.kind == TokenKind::LBrace {
+            self.advance(); // skip '{'
+            let mut field_names = Vec::new();
+            
+            // Ensure we have at least one field
+            if self.current.kind == TokenKind::RBrace {
+                self.error("Empty struct patterns are not allowed.");
+                return None;
+            }
+            
+            while self.current.kind != TokenKind::RBrace {
+                if self.current.kind != TokenKind::Identifier {
+                    self.error("Expected field name in struct pattern.");
+                    return None;
+                }
+                field_names.push(self.current.clone());
+                self.advance();
+
+                if self.current.kind == TokenKind::Comma {
+                    self.advance();
+                } else if self.current.kind != TokenKind::RBrace {
+                    self.error("Expected ',' or '}' in struct pattern.");
+                    return None;
+                }
+            }
+            self.advance(); // skip '}'
+            return Some(ASTNode::StructDeconstructPattern { field_names });
+        }
+
         // Enum destructor pattern
         if self.current.kind == TokenKind::Identifier {
             let name = self.current.clone();
@@ -729,6 +781,8 @@ impl<'a> Parser<'a> {
                     });
                 }
             }
+            // Just an identifier (could be variable binding in pattern)
+            return Some(ASTNode::Variable { name });
         }
 
         // Literal pattern (number, string, boolean, etc.)
@@ -742,7 +796,7 @@ impl<'a> Parser<'a> {
         }
 
         // Not a valid pattern
-        self.error("Invalid pattern: expected literal or enum deconstructor.");
+        self.error("Invalid pattern: expected literal, struct pattern, enum deconstructor, wildcard, or variable binding.");
         None
     }
 

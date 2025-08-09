@@ -36,7 +36,7 @@ fn test_single_character_tokens() {
         TokenKind::Dot,
         TokenKind::Question,
         TokenKind::Dollar,
-        TokenKind::Identifier,
+        TokenKind::Underscore,
         TokenKind::Caret,
     ];
 

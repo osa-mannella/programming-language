@@ -283,6 +283,28 @@ pub fn print_bytecode_debug(bytecode: &BytecodeProgram) {
                         i += 1;
                     }
                 }
+                "match_struct_fields" => {
+                    if i + 1 < bytecode.instructions.len() {
+                        println!("field_count={}", bytecode.instructions[i + 1]);
+                        i += 2;
+                    } else {
+                        println!("(incomplete operand)");
+                        i += 1;
+                    }
+                }
+                "extract_struct_field" => {
+                    println!(""); // No additional operands (field name is on stack)
+                    i += 1;
+                }
+                "call_indirect" => {
+                    if i + 1 < bytecode.instructions.len() {
+                        println!("argc={}", bytecode.instructions[i + 1]);
+                        i += 2;
+                    } else {
+                        println!("(incomplete operand)");
+                        i += 1;
+                    }
+                }
                 "add" | "sub" | "mul" | "div" | "power" | "equal" | "not_equal" | "less" | "greater" 
                 | "less_equal" | "greater_equal" | "and" | "or" | "pop" | "dup"
                 | "return" | "halt" | "match_fail" | "index_access" | "get_type" => {

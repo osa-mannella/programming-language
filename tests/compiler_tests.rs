@@ -11,7 +11,7 @@ fn compile_source(source: &str) -> Result<BytecodeProgram, String> {
     if parser.had_error {
         Err("Parser error".to_string())
     } else {
-        Ok(compile_program(program))
+        compile_program(program)
     }
 }
 
@@ -24,7 +24,7 @@ fn compile_expression(source: &str) -> Result<BytecodeProgram, String> {
             Err("Parser error".to_string())
         } else {
             let program = ASTProgram { nodes: vec![node] };
-            Ok(compile_program(program))
+            compile_program(program)
         }
     } else {
         Err("Failed to parse expression".to_string())
@@ -368,7 +368,7 @@ fn test_function_call_compilation() {
 
 #[test]
 fn test_property_access_compilation() {
-    let bytecode = compile_expression("obj.property").unwrap();
+    let bytecode = compile_expression("obj['property']").unwrap();
 
     // Should compile without errors (property access implementation varies)
     assert!(bytecode.header.magic == *b"MIRB");
@@ -751,13 +751,13 @@ fn test_struct_create_empty() {
 fn test_power_operator_compilation() {
     // Test ^ (caret) power operator
     let bytecode = compile_expression("2 ^ 3").unwrap();
-    
+
     let power_opcode = bytecode.get_opcode("power");
     assert!(power_opcode.is_some());
-    
+
     let opcode = power_opcode.unwrap();
     assert!(bytecode.instructions.contains(&opcode));
-    
+
     // Should contain the number constants
     assert!(
         bytecode
@@ -773,3 +773,70 @@ fn test_power_operator_compilation() {
     );
 }
 
+#[test]
+fn test_single_quote_strings() {
+    let bytecode = compile_expression("'hello world'").unwrap();
+
+    // Should contain the string constant
+    assert!(
+        bytecode
+            .constants
+            .iter()
+            .any(|c| { matches!(c.value, ConstantValue::String(ref s) if s == "hello world") })
+    );
+}
+
+#[test]
+fn test_double_quote_strings() {
+    let bytecode = compile_expression(r#""hello world""#).unwrap();
+
+    // Should contain the string constant
+    assert!(
+        bytecode
+            .constants
+            .iter()
+            .any(|c| { matches!(c.value, ConstantValue::String(ref s) if s == "hello world") })
+    );
+}
+
+#[test]
+fn test_quote_string_escaping() {
+    // Test single quotes escaping double quotes
+    let bytecode = compile_expression(r#"'He said "hello"'"#).unwrap();
+    assert!(
+        bytecode
+            .constants
+            .iter()
+            .any(|c| { matches!(c.value, ConstantValue::String(ref s) if s == r#"He said "hello""#) })
+    );
+
+    // Test double quotes escaping single quotes  
+    let bytecode = compile_expression(r#""It's working""#).unwrap();
+    assert!(
+        bytecode
+            .constants
+            .iter()
+            .any(|c| { matches!(c.value, ConstantValue::String(ref s) if s == "It's working") })
+    );
+}
+
+#[test]
+fn test_string_escape_sequences() {
+    // Test escape sequences in single quoted strings
+    let bytecode = compile_expression(r"'line1\nline2'").unwrap();
+    assert!(
+        bytecode
+            .constants
+            .iter()
+            .any(|c| { matches!(c.value, ConstantValue::String(ref s) if s == "line1\nline2") })
+    );
+
+    // Test escape sequences in double quoted strings
+    let bytecode = compile_expression(r#""tab\there""#).unwrap();
+    assert!(
+        bytecode
+            .constants
+            .iter()
+            .any(|c| { matches!(c.value, ConstantValue::String(ref s) if s == "tab\there") })
+    );
+}

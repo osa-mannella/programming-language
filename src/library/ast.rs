@@ -115,6 +115,10 @@ pub enum ASTNode {
         object: Box<ASTNode>,
         index: Box<ASTNode>,
     },
+    StructDeconstructPattern {
+        field_names: Vec<Token>,
+    },
+    WildcardPattern,
 }
 
 #[derive(Debug, Clone)]
@@ -428,6 +432,17 @@ impl ASTNode {
                 index.print();
                 print!("]");
             }
+            StructDeconstructPattern { field_names } => {
+                print!("{{ ");
+                for (i, field) in field_names.iter().enumerate() {
+                    print!("{:?}", field.value);
+                    if i < field_names.len() - 1 {
+                        print!(", ");
+                    }
+                }
+                print!(" }}");
+            }
+            WildcardPattern => print!("_"),
         }
     }
 }

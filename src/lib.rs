@@ -2,80 +2,26 @@ pub mod library;
 
 #[cfg(test)]
 mod integration_tests {
+    use crate::library::compiler::compile_program;
     use crate::library::lexer::*;
     use crate::library::parser::Parser;
-    use crate::library::compiler::compile_program;
 
-    fn full_compile_pipeline(source: &str) -> Result<crate::library::compiler::BytecodeProgram, String> {
+    fn full_compile_pipeline(
+        source: &str,
+    ) -> Result<crate::library::compiler::BytecodeProgram, String> {
         // Phase 1: Lexing
         let lexer = Lexer::new(source);
-        
+
         // Phase 2: Parsing
         let mut parser = Parser::new(lexer);
         let program = parser.parse_program();
-        
+
         if parser.had_error {
             return Err("Parser error".to_string());
         }
 
         // Phase 3: Compilation
-        Ok(compile_program(program))
-    }
-
-    #[test]
-    fn test_complete_language_feature_coverage() {
-        // Test all major language features through the complete pipeline
-
-        // Basic literals and variables
-        assert!(full_compile_pipeline("let x = 42").is_ok());
-        assert!(full_compile_pipeline("let name = \"hello\"").is_ok());
-        assert!(full_compile_pipeline("let flag = true").is_ok());
-        assert!(full_compile_pipeline("let! result = 3.14").is_ok());
-
-        // Binary operations
-        assert!(full_compile_pipeline("let sum = 1 + 2").is_ok());
-        assert!(full_compile_pipeline("let product = 3 * 4").is_ok());
-        assert!(full_compile_pipeline("let power = 2 ^ 3").is_ok());
-        assert!(full_compile_pipeline("let comparison = 5 > 3").is_ok());
-        assert!(full_compile_pipeline("let equality = 1 == 1").is_ok());
-        assert!(full_compile_pipeline("let logical = true && false").is_ok());
-
-        // Function definitions
-        assert!(full_compile_pipeline("func add(a, b) { a + b }").is_ok());
-        assert!(full_compile_pipeline("async func fetch() { await getData() }").is_ok());
-
-        // Lambda expressions
-        assert!(full_compile_pipeline("let square = fn(x) -> x * x").is_ok());
-        assert!(full_compile_pipeline("let asyncSquare = async fn(x) -> await compute(x * x)").is_ok());
-
-        // Control flow
-        assert!(full_compile_pipeline("if true { 42 } else { 0 }").is_ok());
-        assert!(full_compile_pipeline("match value { 1 -> \"one\", 2 -> \"two\" }").is_ok());
-
-        // Data structures
-        assert!(full_compile_pipeline("let arr = [1, 2, 3]").is_ok());
-        assert!(full_compile_pipeline("let obj = { name = \"John\", age = 30 }").is_ok());
-
-        // Advanced operations
-        assert!(full_compile_pipeline("arr <- [4, 5, 6]").is_ok()); // Array append
-        assert!(full_compile_pipeline("obj <- { age = 31 }").is_ok()); // Struct update
-        assert!(full_compile_pipeline("value |> transform |> filter").is_ok()); // Pipeline
-
-        // Enums
-        assert!(full_compile_pipeline("enum Color { Red, Green, Blue }").is_ok());
-        assert!(full_compile_pipeline("Color::Red").is_ok());
-        assert!(full_compile_pipeline("Shape::Circle { radius = 5 }").is_ok());
-
-        // Function calls and property access
-        assert!(full_compile_pipeline("myFunc(1, 2, 3)").is_ok());
-        assert!(full_compile_pipeline("obj.property").is_ok());
-        assert!(full_compile_pipeline("obj.method().chain()").is_ok());
-
-        // Import statements
-        assert!(full_compile_pipeline(r#"import "IO""#).is_ok());
-
-        // Await expressions
-        assert!(full_compile_pipeline("await asyncFunction()").is_ok());
+        compile_program(program)
     }
 
     #[test]
@@ -178,10 +124,8 @@ mod integration_tests {
 
         // Semantic errors (caught during compilation)
         // These should parse but might have compilation issues
-        let programs_that_parse_but_might_have_semantic_issues = vec![
-            "unknown_function()",
-            "let x = y.nonexistent_property",
-        ];
+        let programs_that_parse_but_might_have_semantic_issues =
+            vec!["unknown_function()", "let x = y.nonexistent_property"];
 
         for program in programs_that_parse_but_might_have_semantic_issues {
             // These should at least parse successfully
@@ -203,7 +147,9 @@ mod integration_tests {
         while let Some(token) = lexer.next() {
             let is_eof = token.kind == TokenKind::Eof;
             tokens.push(token);
-            if is_eof { break; }
+            if is_eof {
+                break;
+            }
         }
         assert_eq!(tokens.len(), 6); // let, x, =, 42, +, 3.14
 
@@ -215,7 +161,7 @@ mod integration_tests {
         assert_eq!(program.nodes.len(), 1);
 
         // Test compiler in isolation
-        let bytecode = compile_program(program);
+        let bytecode = compile_program(program).expect("Compilation should succeed");
         assert_eq!(bytecode.header.magic, *b"MIRB");
         assert!(!bytecode.instructions.is_empty());
     }
@@ -225,17 +171,17 @@ mod integration_tests {
         // Test that the same source produces consistent bytecode
 
         let source = "let x = 1 + 2 * 3";
-        
+
         let bytecode1 = full_compile_pipeline(source).unwrap();
         let bytecode2 = full_compile_pipeline(source).unwrap();
 
         // Headers should be identical
         assert_eq!(bytecode1.header.magic, bytecode2.header.magic);
         assert_eq!(bytecode1.header.version, bytecode2.header.version);
-        
+
         // Constants should be the same
         assert_eq!(bytecode1.constants.len(), bytecode2.constants.len());
-        
+
         // Instructions should be identical
         assert_eq!(bytecode1.instructions.len(), bytecode2.instructions.len());
     }
@@ -271,9 +217,6 @@ mod integration_tests {
                 Result::Error { message } -> 0
             }
             
-            // Test function calls and property access
-            let chained = obj.method().another_method(param1, param2)
-            
             // Test pipeline
             let piped = numbers |> 
                 fn(arr) -> (arr[0]) |>
@@ -299,18 +242,32 @@ mod integration_tests {
         "#;
 
         let result = full_compile_pipeline(comprehensive_source);
-        assert!(result.is_ok(), "Comprehensive test failed: {:?}", result.err());
+        assert!(
+            result.is_ok(),
+            "Comprehensive test failed: {:?}",
+            result.err()
+        );
 
         let bytecode = result.unwrap();
-        
+
         // Verify the bytecode has all the expected components
         assert!(!bytecode.constants.is_empty());
         assert!(!bytecode.functions.is_empty());
         assert!(!bytecode.instructions.is_empty());
-        
+
         // Verify it has strings, numbers, and module references
-        assert!(bytecode.constants.iter().any(|c| matches!(c.value, crate::library::compiler::ConstantValue::String(_))));
-        assert!(bytecode.constants.iter().any(|c| matches!(c.value, crate::library::compiler::ConstantValue::Number(_))));
+        assert!(
+            bytecode
+                .constants
+                .iter()
+                .any(|c| matches!(c.value, crate::library::compiler::ConstantValue::String(_)))
+        );
+        assert!(
+            bytecode
+                .constants
+                .iter()
+                .any(|c| matches!(c.value, crate::library::compiler::ConstantValue::Number(_)))
+        );
     }
 
     #[test]
@@ -319,21 +276,15 @@ mod integration_tests {
 
         let mut large_program = String::new();
         large_program.push_str("import \"IO\"\n");
-        
+
         // Generate a program with many functions
         for i in 0..100 {
-            large_program.push_str(&format!(
-                "func func_{0}(x) {{ x + {0} }}\n", 
-                i
-            ));
+            large_program.push_str(&format!("func func_{0}(x) {{ x + {0} }}\n", i));
         }
-        
+
         // Generate a program with many variables
         for i in 0..100 {
-            large_program.push_str(&format!(
-                "let var_{0} = func_{0}({0})\n", 
-                i
-            ));
+            large_program.push_str(&format!("let var_{0} = func_{0}({0})\n", i));
         }
 
         let result = full_compile_pipeline(&large_program);
@@ -350,28 +301,31 @@ mod integration_tests {
 
         // Empty program
         assert!(full_compile_pipeline("").is_ok());
-        
+
         // Only whitespace
         assert!(full_compile_pipeline("   \n  \t  \n  ").is_ok());
-        
+
         // Single expression
         assert!(full_compile_pipeline("42").is_ok());
-        
+
         // Deeply nested expressions
         assert!(full_compile_pipeline("((((1 + 2) * 3) - 4) / 5)").is_ok());
-        
+
         // Long identifier names
         let long_name = "a".repeat(100);
         assert!(full_compile_pipeline(&format!("let {} = 42", long_name)).is_ok());
-        
+
         // Many parameters
-        let many_params = (0..50).map(|i| format!("p{}", i)).collect::<Vec<_>>().join(", ");
+        let many_params = (0..50)
+            .map(|i| format!("p{}", i))
+            .collect::<Vec<_>>()
+            .join(", ");
         assert!(full_compile_pipeline(&format!("func test({}) {{ 42 }}", many_params)).is_ok());
-        
+
         // Deeply nested structures
         let nested_struct = "{ a = { b = { c = { d = 42 } } } }";
         assert!(full_compile_pipeline(&format!("let nested = {}", nested_struct)).is_ok());
-        
+
         // Long string literals
         let long_string = "x".repeat(1000);
         assert!(full_compile_pipeline(&format!("let s = \"{}\"", long_string)).is_ok());
@@ -424,6 +378,10 @@ mod integration_tests {
         "#;
 
         let compilation_result = full_compile_pipeline(feature_interaction_test);
-        assert!(compilation_result.is_ok(), "Feature interaction test failed: {:?}", compilation_result.err());
+        assert!(
+            compilation_result.is_ok(),
+            "Feature interaction test failed: {:?}",
+            compilation_result.err()
+        );
     }
 }

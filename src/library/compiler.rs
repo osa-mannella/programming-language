@@ -375,19 +375,25 @@ fn collect_declarations(
             }
         }
 
-        ASTNode::LetStatement { name, initializer }
-        | ASTNode::LetBangStatement { name, initializer } => {
+        ASTNode::LetStatement {
+            name: _,
+            initializer,
+        }
+        | ASTNode::LetBangStatement {
+            name: _,
+            initializer,
+        } => {
             match initializer.as_ref() {
                 ASTNode::LambdaExpression { params, body } => {
                     // Special handling for lambda assigned to variable
-                    let func_index = bytecode.add_function(
+                    let _func_index = bytecode.add_function(
                         params.len() as u8,
                         count_locals(body),
                         0, // offset - will be calculated during instruction generation phase
                     );
-                    
+
                     // Don't add to function_map - lambda variables use indirect calls
-                    
+
                     // Recursively collect declarations from lambda body
                     for stmt in body {
                         collect_declarations(bytecode, context, stmt);
@@ -395,14 +401,14 @@ fn collect_declarations(
                 }
                 ASTNode::AsyncLambdaExpression { params, body } => {
                     // Special handling for async lambda assigned to variable
-                    let func_index = bytecode.add_function(
+                    let _func_index = bytecode.add_function(
                         params.len() as u8,
                         count_locals(body),
                         0, // offset - will be calculated during instruction generation phase
                     );
-                    
+
                     // Don't add to function_map - lambda variables use indirect calls
-                    
+
                     // Recursively collect declarations from lambda body
                     for stmt in body {
                         collect_declarations(bytecode, context, stmt);
@@ -427,7 +433,10 @@ fn collect_declarations(
 
             // Validate that the module exists before attempting to load
             if !validate_import_exists(&module_path, &context.module_registry) {
-                eprintln!("Compile error (line {}): Module '{}' not found", path.line, module_path);
+                eprintln!(
+                    "Compile error (line {}): Module '{}' not found",
+                    path.line, module_path
+                );
                 context.compilation_failed = true;
                 return;
             }
@@ -439,7 +448,10 @@ fn collect_declarations(
                             .loaded_modules
                             .insert(module_path.clone(), loaded_module);
                     } else {
-                        eprintln!("Compile error (line {}): Could not load local module '{}'", path.line, module_path);
+                        eprintln!(
+                            "Compile error (line {}): Could not load local module '{}'",
+                            path.line, module_path
+                        );
                         context.compilation_failed = true;
                         return;
                     }
@@ -452,7 +464,10 @@ fn collect_declarations(
                             .loaded_modules
                             .insert(module_path.clone(), loaded_module);
                     } else {
-                        eprintln!("Compile error (line {}): Module '{}' not found in registry", path.line, module_path);
+                        eprintln!(
+                            "Compile error (line {}): Module '{}' not found in registry",
+                            path.line, module_path
+                        );
                         context.compilation_failed = true;
                         return;
                     }
@@ -701,9 +716,13 @@ fn generate_instructions(
                             // Indirect function call - variable contains a FunctionRef
                             // Load the variable containing the function reference
                             load_variable(bytecode, context, &func_name);
-                            
-                            if let Some(call_indirect_opcode) = bytecode.get_opcode("call_indirect") {
-                                bytecode.emit_instruction_u8(call_indirect_opcode, arguments.len() as u8);
+
+                            if let Some(call_indirect_opcode) = bytecode.get_opcode("call_indirect")
+                            {
+                                bytecode.emit_instruction_u8(
+                                    call_indirect_opcode,
+                                    arguments.len() as u8,
+                                );
                             }
                         }
                     }
@@ -771,13 +790,18 @@ fn generate_instructions(
                                 }
                             }
                         } else {
-                            eprintln!("Compile error: Module '{}' not found or function '{}' does not exist", module_name_str, function_name);
+                            eprintln!(
+                                "Compile error: Module '{}' not found or function '{}' does not exist",
+                                module_name_str, function_name
+                            );
                             context.compilation_failed = true;
                             return;
                         }
                     } else {
                         // PropertyAccess where object is not a Variable (not a module call)
-                        eprintln!("Compile error: Dot notation (.) can only be used for module function calls. Use bracket notation ['property'] for struct access instead.");
+                        eprintln!(
+                            "Compile error: Dot notation (.) can only be used for module function calls. Use bracket notation ['property'] for struct access instead."
+                        );
                         context.compilation_failed = true;
                         return;
                     }
@@ -945,7 +969,7 @@ fn generate_instructions(
             for part in parts {
                 generate_instructions(bytecode, context, part);
             }
-            
+
             // Generate string concatenation instructions
             if parts.len() > 1 {
                 if let Some(concat_opcode) = bytecode.get_opcode("string_concat") {
@@ -958,7 +982,7 @@ fn generate_instructions(
             // Generate instructions to load the object and index onto the stack
             generate_instructions(bytecode, context, object);
             generate_instructions(bytecode, context, index);
-            
+
             // Generate index access instruction with runtime type checking
             if let Some(index_access_opcode) = bytecode.get_opcode("index_access") {
                 bytecode.emit_instruction(index_access_opcode);
@@ -998,15 +1022,16 @@ fn generate_instructions(
                         continue;
                     }
                 };
-                let field_name_const = find_or_add_constant(bytecode, ConstantValue::String(field_name_str));
+                let field_name_const =
+                    find_or_add_constant(bytecode, ConstantValue::String(field_name_str));
                 if let Some(load_const_opcode) = bytecode.get_opcode("load_const") {
                     bytecode.emit_instruction_u16(load_const_opcode, field_name_const);
                 }
-                
+
                 // Push field value
                 generate_instructions(bytecode, context, value);
             }
-            
+
             // Generate struct creation instruction with field count
             if let Some(struct_create_opcode) = bytecode.get_opcode("struct_create") {
                 bytecode.emit_instruction_u8(struct_create_opcode, keys.len() as u8);
@@ -1018,16 +1043,19 @@ fn generate_instructions(
             // 1. Find the function index for this lambda (already added in collect_declarations)
             // 2. Generate the lambda body at the current position
             // 3. Load a function reference onto the stack
-            
+
             // Find the function index that matches this lambda
             // We use the current instruction offset to identify which lambda this is
             let current_offset = bytecode.current_offset();
-            
+
             // Look for an uncompiled function with matching signature
-            let func_index = bytecode.functions.iter().enumerate()
+            let func_index = bytecode
+                .functions
+                .iter()
+                .enumerate()
                 .find(|(_, func)| func.arg_count == params.len() as u8 && func.offset == 0)
                 .map(|(idx, _)| idx as u16);
-                
+
             if let Some(func_idx) = func_index {
                 // Set the function's offset to current position
                 bytecode.update_function_offset(func_idx, current_offset);
@@ -1060,7 +1088,8 @@ fn generate_instructions(
 
                 // Load function reference onto stack (for assignment to variable)
                 if let Some(load_const_opcode) = bytecode.get_opcode("load_const") {
-                    let func_const = find_or_add_constant(bytecode, ConstantValue::FunctionRef(func_idx));
+                    let func_const =
+                        find_or_add_constant(bytecode, ConstantValue::FunctionRef(func_idx));
                     bytecode.emit_instruction_u16(load_const_opcode, func_const);
                 }
             } else {
@@ -1072,11 +1101,14 @@ fn generate_instructions(
         ASTNode::AsyncLambdaExpression { params, body } => {
             // Similar handling for async lambdas
             let current_offset = bytecode.current_offset();
-            
-            let func_index = bytecode.functions.iter().enumerate()
+
+            let func_index = bytecode
+                .functions
+                .iter()
+                .enumerate()
                 .find(|(_, func)| func.arg_count == params.len() as u8 && func.offset == 0)
                 .map(|(idx, _)| idx as u16);
-                
+
             if let Some(func_idx) = func_index {
                 bytecode.update_function_offset(func_idx, current_offset);
 
@@ -1102,7 +1134,8 @@ fn generate_instructions(
                 context.variable_counter = old_var_counter;
 
                 if let Some(load_const_opcode) = bytecode.get_opcode("load_const") {
-                    let func_const = find_or_add_constant(bytecode, ConstantValue::FunctionRef(func_idx));
+                    let func_const =
+                        find_or_add_constant(bytecode, ConstantValue::FunctionRef(func_idx));
                     bytecode.emit_instruction_u16(load_const_opcode, func_const);
                 }
             } else {
@@ -1114,7 +1147,9 @@ fn generate_instructions(
         ASTNode::PropertyAccess { .. } => {
             // PropertyAccess should only be used for module function calls within Call nodes
             // Standalone property access (like obj.prop as an expression) is not allowed
-            eprintln!("Compile error: Dot notation (.) is only allowed for module function calls, not for property access. Use bracket notation ['property'] for struct access instead.");
+            eprintln!(
+                "Compile error: Dot notation (.) is only allowed for module function calls, not for property access. Use bracket notation ['property'] for struct access instead."
+            );
             context.compilation_failed = true;
         }
 
@@ -1132,7 +1167,9 @@ fn find_or_add_constant(bytecode: &mut BytecodeProgram, value: ConstantValue) ->
                 return i as u16;
             }
             (ConstantValue::Boolean(a), ConstantValue::Boolean(b)) if a == b => return i as u16,
-            (ConstantValue::FunctionRef(a), ConstantValue::FunctionRef(b)) if a == b => return i as u16,
+            (ConstantValue::FunctionRef(a), ConstantValue::FunctionRef(b)) if a == b => {
+                return i as u16;
+            }
             _ => continue,
         }
     }
@@ -1574,7 +1611,8 @@ fn generate_pattern_match(
             let mut field_const_indices = Vec::new();
             for field_token in field_names {
                 if let Ok(field_name) = get_identifier_string(&field_token.value) {
-                    let field_const = find_or_add_constant(bytecode, ConstantValue::String(field_name));
+                    let field_const =
+                        find_or_add_constant(bytecode, ConstantValue::String(field_name));
                     field_const_indices.push(field_const);
                 } else {
                     eprintln!("Compile error: Invalid field name in struct pattern");
@@ -1582,16 +1620,16 @@ fn generate_pattern_match(
                 }
             }
 
-            // Emit match_struct_fields instruction with field count
-            if let Some(match_struct_opcode) = bytecode.get_opcode("match_struct_fields") {
-                bytecode.emit_instruction_u8(match_struct_opcode, field_names.len() as u8);
-            }
-            
             // Load field names as constants for runtime checking
             for field_const_idx in field_const_indices {
                 if let Some(load_const_opcode) = bytecode.get_opcode("load_const") {
                     bytecode.emit_instruction_u16(load_const_opcode, field_const_idx);
                 }
+            }
+
+            // Emit match_struct_fields instruction with field count
+            if let Some(match_struct_opcode) = bytecode.get_opcode("match_struct_fields") {
+                bytecode.emit_instruction_u8(match_struct_opcode, field_names.len() as u8);
             }
         }
 
@@ -1652,13 +1690,15 @@ fn bind_pattern_variables(
                     }
 
                     // Load the field name as a constant
-                    let field_name_const = find_or_add_constant(bytecode, ConstantValue::String(field_name.clone()));
+                    let field_name_const =
+                        find_or_add_constant(bytecode, ConstantValue::String(field_name.clone()));
                     if let Some(load_const_opcode) = bytecode.get_opcode("load_const") {
                         bytecode.emit_instruction_u16(load_const_opcode, field_name_const);
                     }
 
                     // Extract the field value from the struct
-                    if let Some(extract_field_opcode) = bytecode.get_opcode("extract_struct_field") {
+                    if let Some(extract_field_opcode) = bytecode.get_opcode("extract_struct_field")
+                    {
                         bytecode.emit_instruction(extract_field_opcode);
                     }
 
@@ -1668,7 +1708,7 @@ fn bind_pattern_variables(
                     eprintln!("Compile error: Invalid field name in struct destructuring");
                 }
             }
-            
+
             // Clean up the original struct from the stack
             if let Some(pop_opcode) = bytecode.get_opcode("pop") {
                 bytecode.emit_instruction(pop_opcode);
@@ -1707,4 +1747,3 @@ fn validate_match_arms_field_consistency(_context: &CompileContext, arms: &[supe
         }
     }
 }
-

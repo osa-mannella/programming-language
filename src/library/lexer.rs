@@ -51,6 +51,7 @@ pub enum TokenKind {
     Pipeline,
     LArrow,
     Dollar,
+    Underscore,
 
     Eof,
     Error,
@@ -195,16 +196,16 @@ impl<'a> Lexer<'a> {
         }
     }
 
-    fn make_string(&mut self) -> Option<Token> {
-        self.make_regular_string()
+    fn make_string(&mut self, quote_char: char) -> Option<Token> {
+        self.make_regular_string(quote_char)
     }
 
-    fn make_regular_string(&mut self) -> Option<Token> {
+    fn make_regular_string(&mut self, quote_char: char) -> Option<Token> {
         let mut string = String::new();
         self.advance(); // consume opening quote
 
         while let Some(ch) = self.current {
-            if ch == '"' {
+            if ch == quote_char {
                 self.advance(); // consume closing quote
                 return Some(Token {
                     kind: TokenKind::String,
@@ -220,6 +221,7 @@ impl<'a> Lexer<'a> {
                         'r' => string.push('\r'),
                         '\\' => string.push('\\'),
                         '"' => string.push('"'),
+                        '\'' => string.push('\''),
                         _ => {
                             string.push('\\');
                             string.push(escaped);
@@ -620,13 +622,29 @@ impl<'a> Lexer<'a> {
             }
 
             // String literals
-            '"' => self.make_string(),
+            '"' => self.make_string('"'),
+            '\'' => self.make_string('\''),
 
             // Numbers
             ch if ch.is_ascii_digit() => self.make_number(),
 
+            // Standalone underscore (wildcard)
+            '_' => {
+                let next_char = self.peek();
+                if next_char.is_none() || (!next_char.unwrap().is_ascii_alphanumeric() && next_char.unwrap() != '_') {
+                    self.advance();
+                    Some(Token {
+                        kind: TokenKind::Underscore,
+                        value: TokenValue::None,
+                        line: self.line,
+                    })
+                } else {
+                    self.make_identifier()
+                }
+            }
+
             // Identifiers and keywords
-            ch if ch.is_ascii_alphabetic() || ch == '_' => self.make_identifier(),
+            ch if ch.is_ascii_alphabetic() => self.make_identifier(),
 
             _ => {
                 self.advance();

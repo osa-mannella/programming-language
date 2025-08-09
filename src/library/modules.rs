@@ -47,6 +47,10 @@ impl ModuleRegistry {
         self.modules.get(name)
     }
 
+    pub fn module_exists(&self, name: &str) -> bool {
+        self.modules.contains_key(name)
+    }
+
     pub fn load_module(
         &self,
         name: &str,

@@ -13,7 +13,7 @@ fn test_struct_create_debug_output() {
     if let Some(node) = parser.parse_expression(0) {
         if !parser.had_error {
             let program = ASTProgram { nodes: vec![node] };
-            let bytecode = compile_program(program);
+            let bytecode = compile_program(program).unwrap();
             
             // Test that debug output works without crashing
             print_bytecode_debug(&bytecode);
