@@ -119,6 +119,9 @@ pub enum ASTNode {
         field_names: Vec<Token>,
     },
     WildcardPattern,
+    ReturnStatement {
+        expression: Box<ASTNode>,
+    },
 }
 
 #[derive(Debug, Clone)]
@@ -443,6 +446,10 @@ impl ASTNode {
                 print!(" }}");
             }
             WildcardPattern => print!("_"),
+            ReturnStatement { expression } => {
+                print!("return ");
+                expression.print();
+            }
         }
     }
 }

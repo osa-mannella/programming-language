@@ -11,7 +11,7 @@ use std::process::exit;
 
 fn main() {
     let args: Vec<String> = env::args().collect();
-    
+
     match args.len() {
         1 => {
             print_intro();
@@ -40,7 +40,7 @@ fn main() {
         3 => {
             let flag = &args[1];
             let filename = &args[2];
-            
+
             match flag.as_str() {
                 "--debug" => {
                     print_intro();
@@ -48,13 +48,6 @@ fn main() {
                     println!("🔍 Debug mode enabled");
                     println!();
                     run_file(filename);
-                }
-                "--compile-only" => {
-                    print_intro();
-                    println!();
-                    println!("🔧 Compile-only mode");
-                    println!();
-                    compile_only(filename);
                 }
                 _ => {
                     print_error(&format!("Unknown flag: {}", flag));
@@ -79,18 +72,18 @@ fn run_file(filename: &str) {
             exit(1);
         }
     };
-    
+
     print_success(&format!("Compiling {}", filename));
-    
+
     let lexer = Lexer::new(&source);
     let mut parser = Parser::new(lexer);
     let program = parser.parse_program();
-    
+
     if parser.had_error {
         print_error("Parse errors encountered");
         exit(1);
     }
-    
+
     let bytecode = match compile_program(program) {
         Ok(bytecode) => bytecode,
         Err(e) => {
@@ -101,34 +94,4 @@ fn run_file(filename: &str) {
     print_success("Compilation complete!");
     println!();
     print_bytecode_debug(&bytecode);
-}
-
-fn compile_only(filename: &str) {
-    let source = match fs::read_to_string(filename) {
-        Ok(s) => s,
-        Err(e) => {
-            print_error(&format!("Could not open file \"{}\": {}", filename, e));
-            exit(1);
-        }
-    };
-    
-    print_success(&format!("Compiling {} (compile-only mode)", filename));
-    
-    let lexer = Lexer::new(&source);
-    let mut parser = Parser::new(lexer);
-    let program = parser.parse_program();
-    
-    if parser.had_error {
-        print_error("Parse errors encountered");
-        exit(1);
-    }
-    
-    let _bytecode = match compile_program(program) {
-        Ok(bytecode) => bytecode,
-        Err(e) => {
-            print_error(&format!("Compilation failed: {}", e));
-            exit(1);
-        }
-    };
-    print_success("Compilation successful! ✨");
 }

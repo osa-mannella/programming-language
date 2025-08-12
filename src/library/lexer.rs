@@ -17,6 +17,7 @@ pub enum TokenKind {
     Await,
     Import,
     Enum,
+    Return,
 
     Equal,
     EqualEqual,
@@ -327,6 +328,7 @@ impl<'a> Lexer<'a> {
             "await" => TokenKind::Await,
             "import" => TokenKind::Import,
             "enum" => TokenKind::Enum,
+            "return" => TokenKind::Return,
             _ => TokenKind::Identifier,
         };
 

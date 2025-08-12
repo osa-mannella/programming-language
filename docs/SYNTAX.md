@@ -265,10 +265,10 @@ func n(n1, n2) {
 
 ### Error Propagation with `let!`
 
-The `let!` binding is used within functions that return a `Result` or `Maybe` type. It simplifies error handling by automatically propagating errors or absence, letting you write clear, linear code without manual matching.
+The `let!` binding is used within functions that return a `Result`, `Maybe` or `Unit` type. It simplifies error handling by automatically propagating errors or absence, letting you write clear, linear code without manual matching.
 
 ```mirrow
-func setup() -> Result<Database, SetupError> {
+func setup() {
     let! fileData = readFile("config.json")   // returns Result<String, IOError>
     let! config   = parseConfig(fileData)      // returns Result<Config, ParseError>
     connectDatabase(config)                    // returns Result<Database, SetupError>
@@ -280,7 +280,7 @@ If any step returns an error (`Err`) or absence (`None`), the function immediate
 #### Equivalent Expanded Form
 
 ```mirrow
-func setup() -> Result<Database, SetupError> {
+func setup() {
     match readFile("config.json") {
         Ok(fileData) =>
             match parseConfig(fileData) {
@@ -337,4 +337,34 @@ let circle = Shape::Circle { radius = 4 }
 match circle {
     Shape::Circle { radius } -> PI*r^2
 }
+```
+
+## Predefined Types
+
+As you have probably read thus far I have been using types such as Result and Maybe throughout the syntax documentation. These are enums written in Mirrow, and I will show below their definitions for clarity.
+
+```mirrow
+enum Result {
+    Ok { value },
+    Err { error }
+}
+
+enum Maybe {
+    Just { value },
+    Nothing
+}
+
+enum Unit {
+    Unit
+}
+```
+
+This enum natively supports our little unwrap operator we saw earlier (and was mentioned.) But here I have done my best to make it clear how this unwrapping works.
+
+```mirrow
+let! value = errorFunction() // Result { Ok { value }, Err { error } }
+// propagate error
+
+value
+// { error }
 ```

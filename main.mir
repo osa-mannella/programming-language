@@ -1,3 +1,7 @@
 // todo: verify function calls at compile time!!!, pipe operator, create a global module
 
-let g = fn (x) -> x * x
+func g(x) {
+    let n = [1,2,3]
+}
+
+g(2)

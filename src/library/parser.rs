@@ -882,6 +882,13 @@ impl<'a> Parser<'a> {
         })
     }
 
+    fn parse_return_statement(&mut self) -> ParseResult {
+        let expression = self.parse_expression(0)?;
+        Some(ASTNode::ReturnStatement {
+            expression: Box::new(expression),
+        })
+    }
+
     fn parse_enum_statement(&mut self) -> ParseResult {
         let name = self.current.clone();
         if name.kind != TokenKind::Identifier {
@@ -1103,6 +1110,14 @@ impl<'a> Parser<'a> {
             Await,
             ParseRule {
                 nud: Some(Arc::new(|s, t| s.parse_await_expression(t))),
+                led: None,
+                lbp: 0,
+            },
+        );
+        rules.insert(
+            Return,
+            ParseRule {
+                nud: Some(Arc::new(|s, _| s.parse_return_statement())),
                 led: None,
                 lbp: 0,
             },

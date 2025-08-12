@@ -2,9 +2,11 @@ use crate::library::ast::{ASTNode, ASTProgram};
 use crate::library::lexer::{Lexer, TokenValue};
 use crate::library::modules::{LoadedModule, ModuleDefinition, ModuleFunction, ModuleRegistry};
 use crate::library::parser::Parser;
+use core::panic;
 use std::collections::HashMap;
-use std::fs;
+use std::fs::{self, read_to_string};
 use std::path::Path;
+use std::process::exit;
 
 #[derive(Debug, Clone)]
 pub struct BytecodeHeader {
@@ -65,6 +67,23 @@ struct CompileContext {
     variable_map: HashMap<String, u16>,
     variable_counter: u16,
     compilation_failed: bool,
+}
+
+fn load_static_lib(bytecode: &mut BytecodeProgram, context: &mut CompileContext, lib: &str) {
+    let contents = read_to_string(format!("src/static/{}", lib))
+        .unwrap_or_else(|_| panic!("Failed to load static libraries"));
+
+    let lexer = Lexer::new(&contents);
+    let mut parser = Parser::new(lexer);
+    let program = parser.parse_program();
+
+    if parser.had_error {
+        exit(1);
+    }
+
+    for node in &program.nodes {
+        collect_declarations(bytecode, context, node);
+    }
 }
 
 impl BytecodeProgram {
@@ -159,6 +178,8 @@ impl BytecodeProgram {
         index
     }
 
+    pub fn add_function_body(&mut self) {}
+
     pub fn add_enum(&mut self, name_index: u16, variants: Vec<EnumVariant>) -> u16 {
         let index = self.enums.len() as u16;
         self.enums.push(EnumDef {
@@ -222,6 +243,8 @@ pub fn compile_program(ast: ASTProgram) -> Result<BytecodeProgram, String> {
         compilation_failed: false,
     };
 
+    load_static_lib(&mut bytecode, &mut context, "lib.mir");
+
     for node in &ast.nodes {
         collect_declarations(&mut bytecode, &mut context, node);
         if context.compilation_failed {
@@ -253,23 +276,8 @@ fn collect_declarations(
     node: &ASTNode,
 ) {
     match node {
-        ASTNode::FunctionStatement { name, params, body } => {
-            let func_index = bytecode.add_function(
-                params.len() as u8,
-                count_locals(body),
-                0, // offset - will be calculated during instruction generation phase
-            );
-            match get_identifier_string(&name.value) {
-                Ok(func_name) => {
-                    context.function_map.insert(func_name, func_index);
-                }
-                Err(err) => {
-                    eprintln!("Compile error: {}", err);
-                }
-            }
-        }
-
-        ASTNode::AsyncFunctionStatement { name, params, body } => {
+        ASTNode::FunctionStatement { name, params, body }
+        | ASTNode::AsyncFunctionStatement { name, params, body } => {
             let func_index = bytecode.add_function(
                 params.len() as u8,
                 count_locals(body),
@@ -351,19 +359,8 @@ fn collect_declarations(
             }
         }
 
-        ASTNode::LambdaExpression { params, body } => {
-            bytecode.add_function(
-                params.len() as u8,
-                count_locals(body),
-                0, // offset - will be calculated during instruction generation phase
-            );
-
-            for stmt in body {
-                collect_declarations(bytecode, context, stmt);
-            }
-        }
-
-        ASTNode::AsyncLambdaExpression { params, body } => {
+        ASTNode::LambdaExpression { params, body }
+        | ASTNode::AsyncLambdaExpression { params, body } => {
             bytecode.add_function(
                 params.len() as u8,
                 count_locals(body),
@@ -384,23 +381,9 @@ fn collect_declarations(
             initializer,
         } => {
             match initializer.as_ref() {
-                ASTNode::LambdaExpression { params, body } => {
+                ASTNode::LambdaExpression { params, body }
+                | ASTNode::AsyncLambdaExpression { params, body } => {
                     // Special handling for lambda assigned to variable
-                    let _func_index = bytecode.add_function(
-                        params.len() as u8,
-                        count_locals(body),
-                        0, // offset - will be calculated during instruction generation phase
-                    );
-
-                    // Don't add to function_map - lambda variables use indirect calls
-
-                    // Recursively collect declarations from lambda body
-                    for stmt in body {
-                        collect_declarations(bytecode, context, stmt);
-                    }
-                }
-                ASTNode::AsyncLambdaExpression { params, body } => {
-                    // Special handling for async lambda assigned to variable
                     let _func_index = bytecode.add_function(
                         params.len() as u8,
                         count_locals(body),
@@ -619,6 +602,10 @@ fn collect_constants(bytecode: &mut BytecodeProgram, context: &CompileContext, n
             }
         }
 
+        ASTNode::ReturnStatement { expression } => {
+            collect_constants(bytecode, context, expression);
+        }
+
         ASTNode::Variable { .. }
         | ASTNode::ImportStatement { .. }
         | ASTNode::EnumDeconstructPattern { .. }
@@ -645,6 +632,15 @@ fn generate_instructions(
     context: &mut CompileContext,
     node: &ASTNode,
 ) {
+    generate_instructions_with_context(bytecode, context, node, false);
+}
+
+fn generate_instructions_with_context(
+    bytecode: &mut BytecodeProgram,
+    context: &mut CompileContext,
+    node: &ASTNode,
+    is_last_in_function: bool,
+) {
     match node {
         ASTNode::Literal { token } => {
             let const_index = match &token.value {
@@ -668,8 +664,8 @@ fn generate_instructions(
         }
 
         ASTNode::Binary { left, right, op } => {
-            generate_instructions(bytecode, context, left);
-            generate_instructions(bytecode, context, right);
+            generate_instructions_with_context(bytecode, context, left, false);
+            generate_instructions_with_context(bytecode, context, right, false);
 
             let opcode = match op.kind {
                 crate::library::lexer::TokenKind::Plus => bytecode.get_opcode("add"),
@@ -697,7 +693,7 @@ fn generate_instructions(
 
         ASTNode::Call { callee, arguments } => {
             for arg in arguments {
-                generate_instructions(bytecode, context, arg);
+                generate_instructions_with_context(bytecode, context, arg, false);
             }
 
             match callee.as_ref() {
@@ -829,39 +825,16 @@ fn generate_instructions(
         },
 
         ASTNode::ExpressionStatement { expression } => {
-            generate_instructions(bytecode, context, expression);
-            if let Some(pop_opcode) = bytecode.get_opcode("pop") {
-                bytecode.emit_instruction(pop_opcode);
+            generate_instructions_with_context(bytecode, context, expression, is_last_in_function);
+            if !is_last_in_function {
+                if let Some(pop_opcode) = bytecode.get_opcode("pop") {
+                    bytecode.emit_instruction(pop_opcode);
+                }
             }
         }
 
-        ASTNode::FunctionStatement { name, body, .. } => match get_identifier_string(&name.value) {
-            Ok(func_name) => {
-                if let Some(&func_index) = context.function_map.get(&func_name) {
-                    let offset = bytecode.current_offset();
-                    bytecode.update_function_offset(func_index, offset);
-
-                    let old_var_map = context.variable_map.clone();
-                    let old_var_counter = context.variable_counter;
-
-                    for stmt in body {
-                        generate_instructions(bytecode, context, stmt);
-                    }
-
-                    if let Some(return_opcode) = bytecode.get_opcode("return") {
-                        bytecode.emit_instruction(return_opcode);
-                    }
-
-                    context.variable_map = old_var_map;
-                    context.variable_counter = old_var_counter;
-                }
-            }
-            Err(err) => {
-                eprintln!("Compile error: {}", err);
-            }
-        },
-
-        ASTNode::AsyncFunctionStatement { name, body, .. } => {
+        ASTNode::FunctionStatement { name, body, .. }
+        | ASTNode::AsyncFunctionStatement { name, body, .. } => {
             match get_identifier_string(&name.value) {
                 Ok(func_name) => {
                     if let Some(&func_index) = context.function_map.get(&func_name) {
@@ -871,13 +844,24 @@ fn generate_instructions(
                         let old_var_map = context.variable_map.clone();
                         let old_var_counter = context.variable_counter;
 
-                        for stmt in body {
-                            generate_instructions(bytecode, context, stmt);
+                        let func_start_position =
+                            if let Some(jump_opcode) = bytecode.get_opcode("jump") {
+                                let end_jump = bytecode.current_offset();
+                                bytecode.emit_instruction_u16(jump_opcode, 0);
+                                end_jump
+                            } else {
+                                0
+                            };
+                        for (i, stmt) in body.iter().enumerate() {
+                            let is_last = i == body.len() - 1;
+                            generate_instructions_with_context(bytecode, context, stmt, is_last);
                         }
 
                         if let Some(return_opcode) = bytecode.get_opcode("return") {
                             bytecode.emit_instruction(return_opcode);
                         }
+
+                        patch_jump_offset(bytecode, func_start_position, bytecode.current_offset());
 
                         context.variable_map = old_var_map;
                         context.variable_counter = old_var_counter;
@@ -890,7 +874,7 @@ fn generate_instructions(
         }
 
         ASTNode::Grouping { expression } => {
-            generate_instructions(bytecode, context, expression);
+            generate_instructions_with_context(bytecode, context, expression, false);
         }
 
         ASTNode::IfExpression {
@@ -898,14 +882,14 @@ fn generate_instructions(
             then_branch,
             else_branch,
         } => {
-            generate_instructions(bytecode, context, condition);
+            generate_instructions_with_context(bytecode, context, condition, false);
 
             if let Some(jump_if_false_opcode) = bytecode.get_opcode("jump_if_false") {
                 let false_jump_addr = bytecode.current_offset();
                 bytecode.emit_instruction_u16(jump_if_false_opcode, 0);
 
                 for stmt in then_branch {
-                    generate_instructions(bytecode, context, stmt);
+                    generate_instructions_with_context(bytecode, context, stmt, false);
                 }
 
                 let end_jump_addr = if else_branch.is_some() {
@@ -925,7 +909,7 @@ fn generate_instructions(
 
                 if let Some(else_stmts) = else_branch {
                     for stmt in else_stmts {
-                        generate_instructions(bytecode, context, stmt);
+                        generate_instructions_with_context(bytecode, context, stmt, false);
                     }
                 }
 
@@ -967,7 +951,7 @@ fn generate_instructions(
         ASTNode::StringInterpolation { parts } => {
             // Generate instructions to load each part onto the stack
             for part in parts {
-                generate_instructions(bytecode, context, part);
+                generate_instructions_with_context(bytecode, context, part, false);
             }
 
             // Generate string concatenation instructions
@@ -980,8 +964,8 @@ fn generate_instructions(
 
         ASTNode::IndexAccess { object, index } => {
             // Generate instructions to load the object and index onto the stack
-            generate_instructions(bytecode, context, object);
-            generate_instructions(bytecode, context, index);
+            generate_instructions_with_context(bytecode, context, object, false);
+            generate_instructions_with_context(bytecode, context, index, false);
 
             // Generate index access instruction with runtime type checking
             if let Some(index_access_opcode) = bytecode.get_opcode("index_access") {
@@ -991,9 +975,9 @@ fn generate_instructions(
 
         ASTNode::ArrayAppend { base, elements } => {
             // Generate instructions for array append operation
-            generate_instructions(bytecode, context, base);
+            generate_instructions_with_context(bytecode, context, base, false);
             for element in elements {
-                generate_instructions(bytecode, context, element);
+                generate_instructions_with_context(bytecode, context, element, false);
             }
             if let Some(array_append_opcode) = bytecode.get_opcode("array_append") {
                 bytecode.emit_instruction_u8(array_append_opcode, elements.len() as u8);
@@ -1003,7 +987,7 @@ fn generate_instructions(
         ASTNode::ListLiteral { elements } => {
             // Generate instructions to load each element onto the stack
             for element in elements {
-                generate_instructions(bytecode, context, element);
+                generate_instructions_with_context(bytecode, context, element, false);
             }
             // Generate array creation instruction with element count
             if let Some(create_array_opcode) = bytecode.get_opcode("create_array") {
@@ -1029,7 +1013,7 @@ fn generate_instructions(
                 }
 
                 // Push field value
-                generate_instructions(bytecode, context, value);
+                generate_instructions_with_context(bytecode, context, value, false);
             }
 
             // Generate struct creation instruction with field count
@@ -1038,14 +1022,8 @@ fn generate_instructions(
             }
         }
 
-        ASTNode::LambdaExpression { params, body } => {
-            // During instruction generation, we need to:
-            // 1. Find the function index for this lambda (already added in collect_declarations)
-            // 2. Generate the lambda body at the current position
-            // 3. Load a function reference onto the stack
-
-            // Find the function index that matches this lambda
-            // We use the current instruction offset to identify which lambda this is
+        ASTNode::LambdaExpression { params, body }
+        | ASTNode::AsyncLambdaExpression { params, body } => {
             let current_offset = bytecode.current_offset();
 
             // Look for an uncompiled function with matching signature
@@ -1073,8 +1051,9 @@ fn generate_instructions(
                 context.variable_counter = params.len() as u16;
 
                 // Generate lambda body instructions
-                for stmt in body {
-                    generate_instructions(bytecode, context, stmt);
+                for (i, stmt) in body.iter().enumerate() {
+                    let is_last = i == body.len() - 1;
+                    generate_instructions_with_context(bytecode, context, stmt, is_last);
                 }
 
                 // Add return instruction
@@ -1098,52 +1077,6 @@ fn generate_instructions(
             }
         }
 
-        ASTNode::AsyncLambdaExpression { params, body } => {
-            // Similar handling for async lambdas
-            let current_offset = bytecode.current_offset();
-
-            let func_index = bytecode
-                .functions
-                .iter()
-                .enumerate()
-                .find(|(_, func)| func.arg_count == params.len() as u8 && func.offset == 0)
-                .map(|(idx, _)| idx as u16);
-
-            if let Some(func_idx) = func_index {
-                bytecode.update_function_offset(func_idx, current_offset);
-
-                let old_var_map = context.variable_map.clone();
-                let old_var_counter = context.variable_counter;
-
-                for (i, param) in params.iter().enumerate() {
-                    if let Ok(param_name) = get_identifier_string(&param.value) {
-                        context.variable_map.insert(param_name, i as u16);
-                    }
-                }
-                context.variable_counter = params.len() as u16;
-
-                for stmt in body {
-                    generate_instructions(bytecode, context, stmt);
-                }
-
-                if let Some(return_opcode) = bytecode.get_opcode("return") {
-                    bytecode.emit_instruction(return_opcode);
-                }
-
-                context.variable_map = old_var_map;
-                context.variable_counter = old_var_counter;
-
-                if let Some(load_const_opcode) = bytecode.get_opcode("load_const") {
-                    let func_const =
-                        find_or_add_constant(bytecode, ConstantValue::FunctionRef(func_idx));
-                    bytecode.emit_instruction_u16(load_const_opcode, func_const);
-                }
-            } else {
-                eprintln!("Compile error: Could not find function index for async lambda");
-                context.compilation_failed = true;
-            }
-        }
-
         ASTNode::PropertyAccess { .. } => {
             // PropertyAccess should only be used for module function calls within Call nodes
             // Standalone property access (like obj.prop as an expression) is not allowed
@@ -1151,6 +1084,13 @@ fn generate_instructions(
                 "Compile error: Dot notation (.) is only allowed for module function calls, not for property access. Use bracket notation ['property'] for struct access instead."
             );
             context.compilation_failed = true;
+        }
+
+        ASTNode::ReturnStatement { expression } => {
+            generate_instructions_with_context(bytecode, context, expression, false);
+            if let Some(return_opcode) = bytecode.get_opcode("return") {
+                bytecode.emit_instruction(return_opcode);
+            }
         }
 
         _ => {}
@@ -1205,7 +1145,7 @@ fn generate_let_statement(
 ) {
     match get_identifier_string(&name.value) {
         Ok(variable_name) => {
-            generate_instructions(bytecode, context, initializer);
+            generate_instructions_with_context(bytecode, context, initializer, false);
             store_variable(bytecode, context, &variable_name);
         }
         Err(err) => {
@@ -1263,7 +1203,7 @@ fn generate_enum_constructor(
 
     if let Some(&enum_index) = context.enum_map.get(&enum_name_str) {
         for value in values {
-            generate_instructions(bytecode, context, value);
+            generate_instructions_with_context(bytecode, context, value, false);
         }
         if let Some(enum_def) = bytecode.enums.get(enum_index as usize) {
             let mut variant_index = None;
@@ -1398,22 +1338,8 @@ fn extract_module_definition(ast: &ASTProgram, module_name: &str) -> ModuleDefin
     let constants = Vec::new();
     for node in &ast.nodes {
         match node {
-            ASTNode::FunctionStatement { name, params, .. } => {
-                match get_identifier_string(&name.value) {
-                    Ok(func_name) => {
-                        functions.push(ModuleFunction {
-                            name: func_name,
-                            arg_count: params.len() as u8,
-                            is_native: false,
-                            native_id: None,
-                        });
-                    }
-                    Err(err) => {
-                        eprintln!("Compile error: {}", err);
-                    }
-                }
-            }
-            ASTNode::AsyncFunctionStatement { name, params, .. } => {
+            ASTNode::FunctionStatement { name, params, .. }
+            | ASTNode::AsyncFunctionStatement { name, params, .. } => {
                 match get_identifier_string(&name.value) {
                     Ok(func_name) => {
                         functions.push(ModuleFunction {
@@ -1446,7 +1372,7 @@ fn generate_match_statement(
     arms: &[super::ast::MatchArm],
 ) {
     validate_match_arms_field_consistency(context, arms);
-    generate_instructions(bytecode, context, value);
+    generate_instructions_with_context(bytecode, context, value, false);
 
     let mut match_end_jumps: Vec<u32> = Vec::new();
     for arm in arms.iter() {
@@ -1486,7 +1412,7 @@ fn generate_match_statement(
         bind_pattern_variables(bytecode, context, &arm.patterns[0]);
 
         for expression in &arm.expression {
-            generate_instructions(bytecode, context, expression);
+            generate_instructions_with_context(bytecode, context, expression, false);
         }
 
         if let Some(jump_opcode) = bytecode.get_opcode("jump") {

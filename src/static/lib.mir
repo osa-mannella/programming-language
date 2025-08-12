@@ -1,0 +1,13 @@
+enum Result {
+Ok { value },
+Err { error }
+}
+
+enum Maybe {
+Just { value },
+Nothing
+}
+
+enum Unit {
+Unit
+}
