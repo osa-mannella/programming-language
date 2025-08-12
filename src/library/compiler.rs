@@ -838,9 +838,6 @@ fn generate_instructions_with_context(
             match get_identifier_string(&name.value) {
                 Ok(func_name) => {
                     if let Some(&func_index) = context.function_map.get(&func_name) {
-                        let offset = bytecode.current_offset();
-                        bytecode.update_function_offset(func_index, offset);
-
                         let old_var_map = context.variable_map.clone();
                         let old_var_counter = context.variable_counter;
 
@@ -852,6 +849,8 @@ fn generate_instructions_with_context(
                             } else {
                                 0
                             };
+                        let offset = bytecode.current_offset();
+                        bytecode.update_function_offset(func_index, offset);
                         for (i, stmt) in body.iter().enumerate() {
                             let is_last = i == body.len() - 1;
                             generate_instructions_with_context(bytecode, context, stmt, is_last);

@@ -1,7 +1,7 @@
 // todo: verify function calls at compile time!!!, pipe operator, create a global module, create lambda dynamic jump for functions (can copy implement from func), ensure effect based functions whose values are not used return Unit to allow a safe let! operator, add custom async behaviour where needed (low priority)
 
+g(2)
+
 func g(x) {
     let n = [1,2,3]
 }
-
-g(2)
