@@ -1,4 +1,4 @@
-// todo: verify function calls at compile time!!!, pipe operator, create a global module
+// todo: verify function calls at compile time!!!, pipe operator, create a global module, create lambda dynamic jump for functions (can copy implement from func), add custom async behaviour where needed (low priority)
 
 func g(x) {
     let n = [1,2,3]
