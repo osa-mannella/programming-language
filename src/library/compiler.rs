@@ -1,5 +1,5 @@
 use crate::library::ast::{ASTNode, ASTProgram};
-use crate::library::lexer::{Lexer, TokenValue};
+use crate::library::lexer::{Lexer, Token, TokenValue};
 use crate::library::modules::{LoadedModule, ModuleDefinition, ModuleFunction, ModuleRegistry};
 use crate::library::parser::Parser;
 use core::panic;
@@ -67,6 +67,7 @@ struct CompileContext {
     variable_map: HashMap<String, u16>,
     variable_counter: u16,
     compilation_failed: bool,
+    is_in_function: bool,
 }
 
 fn load_static_lib(bytecode: &mut BytecodeProgram, context: &mut CompileContext, lib: &str) {
@@ -123,9 +124,6 @@ impl BytecodeProgram {
         opcode_map.insert("pop".to_string(), 0x40);
         opcode_map.insert("dup".to_string(), 0x41);
 
-        opcode_map.insert("store_var".to_string(), 0x50);
-        opcode_map.insert("load_var".to_string(), 0x51);
-
         opcode_map.insert("create_enum".to_string(), 0x52);
         opcode_map.insert("get_enum_variant".to_string(), 0x53);
 
@@ -177,8 +175,6 @@ impl BytecodeProgram {
         });
         index
     }
-
-    pub fn add_function_body(&mut self) {}
 
     pub fn add_enum(&mut self, name_index: u16, variants: Vec<EnumVariant>) -> u16 {
         let index = self.enums.len() as u16;
@@ -241,6 +237,7 @@ pub fn compile_program(ast: ASTProgram) -> Result<BytecodeProgram, String> {
         variable_map: HashMap::new(),
         variable_counter: 0,
         compilation_failed: false,
+        is_in_function: false,
     };
 
     load_static_lib(&mut bytecode, &mut context, "lib.mir");
@@ -268,6 +265,25 @@ pub fn compile_program(ast: ASTProgram) -> Result<BytecodeProgram, String> {
     }
 
     Ok(bytecode)
+}
+
+fn get_fn_end(bytecode: &mut BytecodeProgram) -> u32 {
+    if let Some(jump_opcode) = bytecode.get_opcode("jump") {
+        let end_jump = bytecode.current_offset();
+        bytecode.emit_instruction_u16(jump_opcode, 0);
+        end_jump
+    } else {
+        0
+    }
+}
+
+fn load_fn_params(params: &Vec<Token>, context: &mut CompileContext) {
+    for (i, param) in params.iter().enumerate() {
+        if let Ok(param_name) = get_identifier_string(&param.value) {
+            context.variable_map.insert(param_name, i as u16);
+            context.variable_counter = (i + 1) as u16;
+        }
+    }
 }
 
 fn collect_declarations(
@@ -833,22 +849,17 @@ fn generate_instructions_with_context(
             }
         }
 
-        ASTNode::FunctionStatement { name, body, .. }
-        | ASTNode::AsyncFunctionStatement { name, body, .. } => {
+        ASTNode::FunctionStatement { name, body, params }
+        | ASTNode::AsyncFunctionStatement { name, body, params } => {
             match get_identifier_string(&name.value) {
                 Ok(func_name) => {
                     if let Some(&func_index) = context.function_map.get(&func_name) {
                         let old_var_map = context.variable_map.clone();
                         let old_var_counter = context.variable_counter;
 
-                        let func_start_position =
-                            if let Some(jump_opcode) = bytecode.get_opcode("jump") {
-                                let end_jump = bytecode.current_offset();
-                                bytecode.emit_instruction_u16(jump_opcode, 0);
-                                end_jump
-                            } else {
-                                0
-                            };
+                        context.is_in_function = true;
+                        load_fn_params(params, context);
+                        let func_start_position = get_fn_end(bytecode);
                         let offset = bytecode.current_offset();
                         bytecode.update_function_offset(func_index, offset);
                         for (i, stmt) in body.iter().enumerate() {
@@ -859,6 +870,7 @@ fn generate_instructions_with_context(
                         if let Some(return_opcode) = bytecode.get_opcode("return") {
                             bytecode.emit_instruction(return_opcode);
                         }
+                        context.is_in_function = false;
 
                         patch_jump_offset(bytecode, func_start_position, bytecode.current_offset());
 
@@ -1040,14 +1052,10 @@ fn generate_instructions_with_context(
                 // Save current variable context
                 let old_var_map = context.variable_map.clone();
                 let old_var_counter = context.variable_counter;
+                context.is_in_function = true;
 
-                // Set up lambda parameters as local variables (0, 1, 2, ...)
-                for (i, param) in params.iter().enumerate() {
-                    if let Ok(param_name) = get_identifier_string(&param.value) {
-                        context.variable_map.insert(param_name, i as u16);
-                    }
-                }
-                context.variable_counter = params.len() as u16;
+                let func_start_position = get_fn_end(bytecode);
+                load_fn_params(params, context);
 
                 // Generate lambda body instructions
                 for (i, stmt) in body.iter().enumerate() {
@@ -1059,8 +1067,9 @@ fn generate_instructions_with_context(
                 if let Some(return_opcode) = bytecode.get_opcode("return") {
                     bytecode.emit_instruction(return_opcode);
                 }
+                context.is_in_function = false;
 
-                // Restore variable context
+                patch_jump_offset(bytecode, func_start_position, bytecode.current_offset());
                 context.variable_map = old_var_map;
                 context.variable_counter = old_var_counter;
 
@@ -1162,15 +1171,27 @@ fn store_variable(bytecode: &mut BytecodeProgram, context: &mut CompileContext, 
         context.variable_counter += 1;
         index
     };
-    if let Some(store_opcode) = bytecode.get_opcode("store_var") {
-        bytecode.emit_instruction_u16(store_opcode, var_index);
+    if context.is_in_function {
+        if let Some(store_local_opcode) = bytecode.get_opcode("store_local") {
+            bytecode.emit_instruction_u16(store_local_opcode, var_index);
+        }
+    } else {
+        if let Some(store_global_opcode) = bytecode.get_opcode("store_global") {
+            bytecode.emit_instruction_u16(store_global_opcode, var_index);
+        }
     }
 }
 
 fn load_variable(bytecode: &mut BytecodeProgram, context: &CompileContext, var_name: &str) {
     if let Some(&var_index) = context.variable_map.get(var_name) {
-        if let Some(load_opcode) = bytecode.get_opcode("load_var") {
-            bytecode.emit_instruction_u16(load_opcode, var_index);
+        if context.is_in_function {
+            if let Some(load_local_opcode) = bytecode.get_opcode("load_local") {
+                bytecode.emit_instruction_u8(load_local_opcode, var_index as u8);
+            }
+        } else {
+            if let Some(load_global_opcode) = bytecode.get_opcode("load_global") {
+                bytecode.emit_instruction_u16(load_global_opcode, var_index);
+            }
         }
     } else {
         eprintln!("Compile error: Variable '{}' not found", var_name);

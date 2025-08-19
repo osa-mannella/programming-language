@@ -112,23 +112,23 @@ pub fn print_bytecode_debug(bytecode: &BytecodeProgram) {
                         i += 1;
                     }
                 }
-                "store_var" | "load_var" => {
-                    if i + 2 < bytecode.instructions.len() {
-                        let var_index = u16::from_le_bytes([
-                            bytecode.instructions[i + 1],
-                            bytecode.instructions[i + 2],
-                        ]);
-                        println!("var_index={}", var_index);
-                        i += 3;
+                "load_local" => {
+                    if i + 1 < bytecode.instructions.len() {
+                        println!("{}", bytecode.instructions[i + 1]);
+                        i += 2;
                     } else {
                         println!("(incomplete operand)");
                         i += 1;
                     }
                 }
-                "load_local" | "store_local" => {
-                    if i + 1 < bytecode.instructions.len() {
-                        println!("{}", bytecode.instructions[i + 1]);
-                        i += 2;
+                "store_local" => {
+                    if i + 2 < bytecode.instructions.len() {
+                        let operand = u16::from_le_bytes([
+                            bytecode.instructions[i + 1],
+                            bytecode.instructions[i + 2],
+                        ]);
+                        println!("{}", operand);
+                        i += 3;
                     } else {
                         println!("(incomplete operand)");
                         i += 1;
@@ -305,8 +305,8 @@ pub fn print_bytecode_debug(bytecode: &BytecodeProgram) {
                         i += 1;
                     }
                 }
-                "add" | "sub" | "mul" | "div" | "power" | "equal" | "not_equal" | "less" | "greater" 
-                | "less_equal" | "greater_equal" | "and" | "or" | "pop" | "dup"
+                "add" | "sub" | "mul" | "div" | "power" | "equal" | "not_equal" | "less"
+                | "greater" | "less_equal" | "greater_equal" | "and" | "or" | "pop" | "dup"
                 | "return" | "halt" | "match_fail" | "index_access" | "get_type" => {
                     println!(""); // No operands
                     i += 1;
@@ -321,4 +321,3 @@ pub fn print_bytecode_debug(bytecode: &BytecodeProgram) {
 
     println!("\n=== END BYTECODE DEBUG ===");
 }
-
