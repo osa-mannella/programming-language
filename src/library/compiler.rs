@@ -474,6 +474,47 @@ fn collect_declarations(
             }
         }
 
+        ASTNode::Pipeline { left, right } => {
+            // Recursively collect declarations from left side
+            collect_declarations(bytecode, context, left);
+            
+            // Handle right side - if it's a lambda, we need to pre-declare it
+            match right.as_ref() {
+                ASTNode::LambdaExpression { params, body }
+                | ASTNode::AsyncLambdaExpression { params, body } => {
+                    // Pre-declare the lambda function
+                    bytecode.add_function(
+                        params.len() as u8,
+                        count_locals(body),
+                        0, // offset - will be calculated during instruction generation phase
+                    );
+                    
+                    // Recursively collect declarations from lambda body
+                    for stmt in body {
+                        collect_declarations(bytecode, context, stmt);
+                    }
+                }
+                
+                ASTNode::Call { callee, arguments } => {
+                    // If the call contains lambdas in arguments, collect them
+                    collect_declarations(bytecode, context, callee);
+                    for arg in arguments {
+                        collect_declarations(bytecode, context, arg);
+                    }
+                }
+                
+                ASTNode::Pipeline { .. } => {
+                    // Handle nested pipeline (chained pipelines)
+                    collect_declarations(bytecode, context, right);
+                }
+                
+                _ => {
+                    // Recursively collect from other node types
+                    collect_declarations(bytecode, context, right);
+                }
+            }
+        }
+
         _ => {}
     }
 }
@@ -1092,6 +1133,194 @@ fn generate_instructions_with_context(
                 "Compile error: Dot notation (.) is only allowed for module function calls, not for property access. Use bracket notation ['property'] for struct access instead."
             );
             context.compilation_failed = true;
+        }
+
+        ASTNode::Pipeline { left, right } => {
+            // Generate instructions for the left side (the value being piped)
+            generate_instructions_with_context(bytecode, context, left, false);
+            
+            // Handle the right side based on its type
+            match right.as_ref() {
+                // Simple function call: left |> func becomes func(left)
+                ASTNode::Variable { name } => {
+                    match get_identifier_string(&name.value) {
+                        Ok(func_name) => {
+                            if let Some(&func_index) = context.function_map.get(&func_name) {
+                                // Direct function call with left value as single argument
+                                if let Some(call_opcode) = bytecode.get_opcode("call") {
+                                    bytecode.emit_instruction_u8_u8(call_opcode, func_index as u8, 1);
+                                }
+                            } else {
+                                // Indirect function call - variable contains a FunctionRef
+                                load_variable(bytecode, context, &func_name);
+                                if let Some(call_indirect_opcode) = bytecode.get_opcode("call_indirect") {
+                                    bytecode.emit_instruction_u8(call_indirect_opcode, 1);
+                                }
+                            }
+                        }
+                        Err(err) => {
+                            eprintln!("Compile error: {}", err);
+                            context.compilation_failed = true;
+                        }
+                    }
+                }
+                
+                // Function call with additional args: left |> func(arg2, arg3) becomes func(left, arg2, arg3)
+                ASTNode::Call { callee, arguments } => {
+                    // Generate instructions for additional arguments (left is already on stack)
+                    for arg in arguments {
+                        generate_instructions_with_context(bytecode, context, arg, false);
+                    }
+                    
+                    match callee.as_ref() {
+                        ASTNode::Variable { name } => {
+                            match get_identifier_string(&name.value) {
+                                Ok(func_name) => {
+                                    if let Some(&func_index) = context.function_map.get(&func_name) {
+                                        // Direct function call with left value + additional arguments
+                                        if let Some(call_opcode) = bytecode.get_opcode("call") {
+                                            bytecode.emit_instruction_u8_u8(
+                                                call_opcode, 
+                                                func_index as u8, 
+                                                (arguments.len() + 1) as u8  // +1 for the piped value
+                                            );
+                                        }
+                                    } else {
+                                        // Indirect function call
+                                        load_variable(bytecode, context, &func_name);
+                                        if let Some(call_indirect_opcode) = bytecode.get_opcode("call_indirect") {
+                                            bytecode.emit_instruction_u8(
+                                                call_indirect_opcode, 
+                                                (arguments.len() + 1) as u8
+                                            );
+                                        }
+                                    }
+                                }
+                                Err(err) => {
+                                    eprintln!("Compile error: {}", err);
+                                    context.compilation_failed = true;
+                                }
+                            }
+                        }
+                        
+                        ASTNode::PropertyAccess { object, property } => {
+                            // Module function call: left |> Module.func(args)
+                            if let ASTNode::Variable { name: module_name } = object.as_ref() {
+                                let module_name_str = match get_identifier_string(&module_name.value) {
+                                    Ok(name) => name,
+                                    Err(err) => {
+                                        eprintln!("Compile error: {}", err);
+                                        context.compilation_failed = true;
+                                        return;
+                                    }
+                                };
+                                let function_name = match get_identifier_string(&property.value) {
+                                    Ok(name) => name,
+                                    Err(err) => {
+                                        eprintln!("Compile error: {}", err);
+                                        context.compilation_failed = true;
+                                        return;
+                                    }
+                                };
+
+                                if let Some(loaded_module) = context.loaded_modules.get(&module_name_str) {
+                                    if let Some(&func_index) = loaded_module.function_indices.get(&function_name) {
+                                        if let Some(module_func) = loaded_module
+                                            .definition
+                                            .functions
+                                            .iter()
+                                            .find(|f| f.name == function_name)
+                                        {
+                                            if module_func.is_native {
+                                                if let Some(call_native_opcode) = bytecode.get_opcode("call_native") {
+                                                    bytecode.emit_instruction_u8_u8(
+                                                        call_native_opcode,
+                                                        module_func.native_id.unwrap_or(0),
+                                                        (arguments.len() + 1) as u8,
+                                                    );
+                                                } else if let Some(call_global_opcode) = bytecode.get_opcode("call_global") {
+                                                    bytecode.emit_instruction_u8_u8(
+                                                        call_global_opcode,
+                                                        func_index as u8,
+                                                        (arguments.len() + 1) as u8,
+                                                    );
+                                                }
+                                            } else {
+                                                if let Some(call_opcode) = bytecode.get_opcode("call") {
+                                                    bytecode.emit_instruction_u8_u8(
+                                                        call_opcode,
+                                                        func_index as u8,
+                                                        (arguments.len() + 1) as u8,
+                                                    );
+                                                }
+                                            }
+                                        }
+                                    }
+                                } else {
+                                    eprintln!(
+                                        "Compile error: Module '{}' not found or function '{}' does not exist",
+                                        module_name_str, function_name
+                                    );
+                                    context.compilation_failed = true;
+                                }
+                            }
+                        }
+                        
+                        _ => {
+                            eprintln!("Compile error: Invalid function call in pipeline");
+                            context.compilation_failed = true;
+                        }
+                    }
+                }
+                
+                // Lambda function: left |> fn(x) -> x * 2
+                ASTNode::LambdaExpression { params, body } | ASTNode::AsyncLambdaExpression { params, body } => {
+                    // Create a new function for this lambda instead of trying to reuse
+                    let func_idx = bytecode.add_function(
+                        params.len() as u8,
+                        count_locals(body),
+                        0, // offset will be set below
+                    );
+
+                    // Set the function's offset to current position + jump
+                    let func_start_position = get_fn_end(bytecode);
+                    let offset = bytecode.current_offset();
+                    bytecode.update_function_offset(func_idx, offset);
+
+                    // Save current variable context
+                    let old_var_map = context.variable_map.clone();
+                    let old_var_counter = context.variable_counter;
+                    context.is_in_function = true;
+
+                    load_fn_params(params, context);
+
+                    // Generate lambda body instructions
+                    for (i, stmt) in body.iter().enumerate() {
+                        let is_last = i == body.len() - 1;
+                        generate_instructions_with_context(bytecode, context, stmt, is_last);
+                    }
+
+                    // Add return instruction
+                    if let Some(return_opcode) = bytecode.get_opcode("return") {
+                        bytecode.emit_instruction(return_opcode);
+                    }
+                    context.is_in_function = false;
+
+                    patch_jump_offset(bytecode, func_start_position, bytecode.current_offset());
+                    context.variable_map = old_var_map;
+                    context.variable_counter = old_var_counter;
+
+                    // Now call the function with the left value as argument
+                    if let Some(call_opcode) = bytecode.get_opcode("call") {
+                        bytecode.emit_instruction_u8_u8(call_opcode, func_idx as u8, 1);
+                    }
+                }
+                
+                _ => {
+                    eprintln!("Compile error: Pipeline right side must be a function call or lambda");
+                    context.compilation_failed = true;
+                }
+            }
         }
 
         ASTNode::ReturnStatement { expression } => {

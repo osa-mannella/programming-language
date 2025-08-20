@@ -28,7 +28,12 @@ Mirrow is a web-first functional programming language built in Rust. It's curren
 - Enums with algebraic data types (Result, Maybe, Unit)
 - Pattern matching with match expressions
 - Error propagation with `let!` operator
-- Pipeline operators `|>`
+- **Pipeline operators `|>` (FULLY IMPLEMENTED)**
+  - Simple function piping: `value |> func`
+  - Function calls with additional args: `value |> func(arg2, arg3)`
+  - Lambda functions: `value |> fn(x) -> x * 2`
+  - Chained pipelines: `value |> func1 |> func2`
+  - Module function calls: `value |> Module.func(args)`
 - Struct operations and updates
 - Async/await constructs
 - Module imports

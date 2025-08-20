@@ -1,10 +1,6 @@
 import "IO"
 
-let z = 4
-let x = 5
-let n = g(2, 3, 4)
-
-func g(x, y, z) {
-IO.print(x)
-return 1
+func n(a, s) {
+a * s
 }
+fn (x) -> x*x |> n

@@ -44,7 +44,3 @@ Mirrow is in early development. Follow this repository for updates as we build t
 ## Status
 
 🚧 **Early Development** - Core language design and bytecode specification complete. VM implementation in progress.
-
-## License
-
-MIT
