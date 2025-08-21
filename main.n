@@ -1,1 +1,5 @@
-let x = true
+func n(a, b) {
+    a*b
+}
+
+n(1, 2)

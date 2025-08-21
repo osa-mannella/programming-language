@@ -1,9 +1,11 @@
-use crate::types::{token::Token, ast::*};
+use crate::types::{ast::*, token::Token};
 
 pub struct Parser {
     tokens: Vec<Token>,
     pos: usize,
 }
+
+const MIN_PREC_DEFAULT: u8 = 1;
 
 impl Parser {
     pub fn new(tokens: Vec<Token>) -> Self {
@@ -29,7 +31,7 @@ impl Parser {
                 if matches!(self.current(), Token::Eof | Token::Match | Token::Enum) {
                     return Stmt::Expr(Expr::Identifier("unimplemented".to_string()));
                 }
-                Stmt::Expr(self.expression(0))
+                Stmt::Expr(self.expression(MIN_PREC_DEFAULT))
             }
         }
     }
@@ -41,7 +43,7 @@ impl Parser {
             _ => panic!("Expected identifier"),
         };
         self.expect(Token::Assign);
-        let value = self.expression(0);
+        let value = self.expression(MIN_PREC_DEFAULT);
         Stmt::Let { name, value }
     }
 
@@ -88,7 +90,7 @@ impl Parser {
             Token::Number(n) => Expr::Number(n),
             Token::String(s) => Expr::String(s),
             Token::LeftParen => {
-                let expr = self.expression(0);
+                let expr = self.expression(MIN_PREC_DEFAULT);
                 self.expect(Token::RightParen);
                 expr
             }
@@ -98,30 +100,47 @@ impl Parser {
 
     fn led(&mut self, left: Expr) -> Expr {
         match self.current() {
-            Token::Plus | Token::Minus | Token::Multiply | Token::Divide |
-            Token::Equal | Token::NotEqual | Token::Less | Token::Greater |
-            Token::LessEqual | Token::GreaterEqual => {
+            Token::Plus
+            | Token::Minus
+            | Token::Multiply
+            | Token::Divide
+            | Token::Equal
+            | Token::NotEqual
+            | Token::Less
+            | Token::Greater
+            | Token::LessEqual
+            | Token::GreaterEqual => {
                 let op = self.binary_op();
                 self.advance();
-                let right = self.expression(self.precedence());
-                Expr::Binary { left: Box::new(left), op, right: Box::new(right) }
+                let right = self.expression(self.precedence() + 1);
+                Expr::Binary {
+                    left: Box::new(left),
+                    op,
+                    right: Box::new(right),
+                }
             }
             Token::LeftParen => {
                 self.advance();
                 let mut args = Vec::new();
                 while !matches!(self.current(), Token::RightParen) {
-                    args.push(self.expression(0));
+                    args.push(self.expression(MIN_PREC_DEFAULT));
                     if matches!(self.current(), Token::Comma) {
                         self.advance();
                     }
                 }
                 self.expect(Token::RightParen);
-                Expr::Call { func: Box::new(left), args }
+                Expr::Call {
+                    func: Box::new(left),
+                    args,
+                }
             }
             Token::Pipeline => {
                 self.advance();
-                let right = self.expression(self.precedence());
-                Expr::Pipeline { left: Box::new(left), right: Box::new(right) }
+                let right = self.expression(self.precedence() + 1);
+                Expr::Pipeline {
+                    left: Box::new(left),
+                    right: Box::new(right),
+                }
             }
             _ => left,
         }
@@ -146,8 +165,12 @@ impl Parser {
     fn precedence(&self) -> u8 {
         match self.current() {
             Token::Pipeline => 1,
-            Token::Equal | Token::NotEqual | Token::Less | Token::Greater |
-            Token::LessEqual | Token::GreaterEqual => 2,
+            Token::Equal
+            | Token::NotEqual
+            | Token::Less
+            | Token::Greater
+            | Token::LessEqual
+            | Token::GreaterEqual => 2,
             Token::Plus | Token::Minus => 3,
             Token::Multiply | Token::Divide => 4,
             Token::LeftParen => 5,
@@ -161,7 +184,7 @@ impl Parser {
 
     fn advance(&mut self) -> Token {
         let token = self.current().clone();
-        if !self.is_at_end() {
+        if self.pos < self.tokens.len() - 1 {
             self.pos += 1;
         }
         token
@@ -180,7 +203,8 @@ impl Parser {
         }
     }
 
-    fn is_at_end(&self) -> bool {
+    fn is_at_end(&mut self) -> bool {
+        self.skip_newlines();
         matches!(self.current(), Token::Eof)
     }
 }
