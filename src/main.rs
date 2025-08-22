@@ -2,6 +2,7 @@ mod types;
 mod lexer;
 mod debug;
 mod parser;
+mod compiler;
 
 use std::env;
 use std::fs;
@@ -9,6 +10,7 @@ use std::process;
 use lexer::Lexer;
 use debug::print_tokens;
 use parser::Parser;
+use compiler::Compiler;
 
 fn main() {
     let args: Vec<String> = env::args().collect();
@@ -49,4 +51,10 @@ fn main() {
     
     println!("=== AST ===");
     println!("{:#?}", ast);
+    
+    let mut compiler = Compiler::new();
+    let bytecode = compiler.compile(&ast);
+    
+    println!();
+    println!("{}", bytecode);
 }
