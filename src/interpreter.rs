@@ -71,7 +71,7 @@ impl VirtualMachine {
                 self.stack.push(value);
             }
 
-            Instruction::StoreVar(var_index) => {
+            Instruction::StoreVar(depth, var_index) => {
                 let value = self.stack.pop().ok_or("Stack underflow")?;
 
                 // Store in global variables and get the storage index
@@ -86,7 +86,7 @@ impl VirtualMachine {
                 current_frame.set_variable(*var_index, storage_index);
             }
 
-            Instruction::LoadVar(var_index) => {
+            Instruction::LoadVar(depth, var_index) => {
                 let value = self.resolve_variable(*var_index)?;
                 self.stack.push(value);
             }

@@ -5,8 +5,8 @@ use std::fmt;
 #[repr(u8)]
 #[derive(Debug, Clone, PartialEq)]
 pub enum Instruction {
-    StoreVar(usize) = 0x01,
-    LoadVar(usize) = 0x02,
+    StoreVar(usize, usize) = 0x01,
+    LoadVar(usize, usize) = 0x02,
     LoadArg(usize) = 0x03,
     Call(usize) = 0x04,
     Return = 0x05,
@@ -37,11 +37,12 @@ pub struct Compiler {
     constants: Vec<Value>,
     functions: HashMap<String, usize>,
     function_table: Vec<Value>,
-    variables: HashMap<String, usize>,
+    variables: Vec<HashMap<String, usize>>,
     instructions: Vec<Instruction>,
     current_function: Option<String>,
     current_function_params: HashMap<String, usize>, // Function-local parameter mapping
     current_param_count: usize, // Track number of parameters in current function
+    depth: usize,
 }
 
 pub struct ByteCode {
@@ -56,12 +57,33 @@ impl Compiler {
             constants: Vec::new(),
             functions: HashMap::new(),
             function_table: Vec::new(),
-            variables: HashMap::new(),
+            variables: Vec::new(),
+            depth: 0,
             instructions: Vec::new(),
             current_function: None,
             current_function_params: HashMap::new(),
             current_param_count: 0,
         }
+    }
+
+    fn insert_variable(&mut self, name: &str, index: usize) {
+        println!("{} {}", self.variables.len(), self.depth);
+        if self.variables.len() <= self.depth {
+            for _ in self.variables.len()..=self.depth {
+                self.variables.push(HashMap::new());
+            }
+            // Add HashMaps to match the appropriate depth to ensure inbound indexing
+        }
+        self.variables[self.depth].insert(name.to_string(), index);
+    }
+
+    fn get_variable(&self, name: &str) -> Option<usize> {
+        for scope in self.variables.iter().rev() {
+            if let Some(index) = scope.get(name) {
+                return Some(*index);
+            }
+        }
+        None
     }
 
     pub fn compile(&mut self, program: &Program) -> ByteCode {
@@ -151,7 +173,9 @@ impl Compiler {
             Stmt::Let { name, value } => {
                 self.compile_expression(value);
                 let var_index = self.get_or_create_variable_index(name);
-                self.instructions.push(Instruction::StoreVar(var_index));
+
+                self.instructions
+                    .push(Instruction::StoreVar(self.depth, var_index));
             }
             Stmt::Func { name, params, body } => {
                 // Jump over the function definition in main execution flow
@@ -195,7 +219,9 @@ impl Compiler {
 
                 for (i, body_stmt) in body.iter().enumerate() {
                     let last = i == body.len() - 1;
+                    self.depth += 1;
                     self.compile_statement(body_stmt, last);
+                    self.depth -= 1;
                 }
 
                 self.instructions.push(Instruction::Return);
@@ -229,7 +255,8 @@ impl Compiler {
             }
             Expr::Identifier(name) => {
                 let var_index = self.get_or_create_variable_index(name);
-                self.instructions.push(Instruction::LoadVar(var_index));
+                self.instructions
+                    .push(Instruction::LoadVar(self.depth, var_index));
             }
             Expr::Binary { left, op, right } => {
                 self.compile_expression(left);
@@ -307,26 +334,26 @@ impl Compiler {
                 return *param_index;
             }
         }
-
         // For local variables in functions, start indexing after parameters
         if self.current_function.is_some() {
             // If it exists we just return the de-referenced index
-            if let Some(index) = self.variables.get(name) {
-                *index
+            if let Some(index) = self.get_variable(name) {
+                index
             } else {
                 // Local variables start from param_count to avoid conflicts
                 // Here we create the variable
+
                 let index = self.current_param_count + self.variables.len();
-                self.variables.insert(name.to_string(), index);
+                self.insert_variable(name, index);
                 index
             }
         } else {
             // Global scope - use standard indexing
-            if let Some(index) = self.variables.get(name) {
-                *index
+            if let Some(index) = self.get_variable(name) {
+                index
             } else {
                 let index = self.variables.len();
-                self.variables.insert(name.to_string(), index);
+                self.insert_variable(name, index);
                 index
             }
         }
@@ -336,8 +363,8 @@ impl Compiler {
 impl fmt::Display for Instruction {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
-            Instruction::StoreVar(idx) => write!(f, "STORE_VAR {}", idx),
-            Instruction::LoadVar(idx) => write!(f, "LOAD_VAR {}", idx),
+            Instruction::StoreVar(scope, idx) => write!(f, "STORE_VAR {} {}", scope, idx),
+            Instruction::LoadVar(scope, idx) => write!(f, "LOAD_VAR {} {}", scope, idx),
             Instruction::LoadArg(idx) => write!(f, "LOAD_ARG {}", idx),
             Instruction::Call(idx) => write!(f, "CALL {}", idx),
             Instruction::Return => write!(f, "RETURN"),

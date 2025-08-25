@@ -46,13 +46,13 @@ fn main() {
     let mut lexer = Lexer::new(source_code);
     let tokens = lexer.tokenize();
 
-    print_tokens(&tokens);
+    //print_tokens(&tokens);
 
     let mut parser = Parser::new(tokens);
     let ast = parser.parse();
 
     println!("=== AST ===");
-    println!("{:#?}", ast);
+    //println!("{:#?}", ast);
 
     let mut compiler = Compiler::new();
     let bytecode = compiler.compile(&ast);
