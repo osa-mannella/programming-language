@@ -12,7 +12,7 @@
 
 ## 2. HEADER (8 bytes)
 
-- Magic number (2 bytes) : "NB"
+- Magic number (2  bytes) : "NB"
 - Version (uint16) : e.g., 1
 - Flags (uint16) : reserved for future use
 

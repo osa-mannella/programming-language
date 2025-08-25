@@ -1,23 +1,7 @@
-let x = 42
-let name = "Alice"
-
-func greet(name) {
-    "Hello " + name
+func add(a, b) {
+    a + b
 }
 
-let result = greet("World") |> print
-
-match x {
-    42 -> "The answer"
-    _ -> "Something else"
-}
-
-enum Shape {
-    Circle { radius },
-    Rectangle { width, height }
-}
-
-let circle = Shape::Circle { radius = 5 }
-
-let! data = readFile("config.json")
-let config = parseConfig(data)
+let x = 10
+let y = 5
+let result = add(x, y)

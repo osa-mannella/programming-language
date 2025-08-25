@@ -26,9 +26,10 @@ In short: In a linear order at compile time our variable names are mapped to usi
 // Plus smaller bytecode (no string constants for variable names)
 STORE_VAR 0x01 <index>
 LOAD_VAR 0x02 <index>
-CALL 0x03 <index>
-RETURN 0x04
-LOAD_CONST 0x05 <index>
+LOAD_ARG 0x03 <count>
+CALL 0x04 <index>
+RETURN 0x05
+LOAD_CONST 0x06 <index>
 ADD 0x10
 SUB 0x11
 DIV 0x12
@@ -36,11 +37,19 @@ MUL 0x13
 EQUAL 0x14
 LESS 0x15
 GREATER 0x16
-JUMP 0x20
-JUMP_IF_FALSE 0x21
-JUMP_IF_TRUE 0x22
+JUMP 0x20 <index>
+JUMP_IF_FALSE 0x21 <index>
+JUMP_IF_TRUE 0x22 <index>
 POP 0x30
 DUP 0x31
 HALT 0x32
 
 The initial byte code set is simple in nature but should be ample in order to begin writing an initial byte code set for n that will be expandable in the future. There are some OPCODEs I have omitted, a CALL_GLOBAL OPCODE may be in effect in a later version in order to allow for maximum runtime speed for calling native global functions instead of relying on a runtime fallback system.
+
+Interpreter
+
+With respect to the n language interpreter I want to try and keep it lean to begin, which likely says very little given such has likely been the thought of everyone who has ever decided upon writing a programming language of a fair scope. Nonetheless needless to say the VM interpreter will be entirely stack based opposed to a register based approach given the logistics of a register based approach would not provide a meaningful benefit for n. We will use a stack frame for variables and store their array index useize, revisit the line above with respect to mapping the variables to array indexes, that is what we will store in the stack frame. When we see a referenced variable we will do 2 O(n) checks on the last entry in our stackframe (to be clear our stack frame will be a 2 dimensional) array and our first entry. The first would be the global score and the last would be the local scope. That way scoping will work appropriately.
+
+A lot of the instructions are pretty self explanatory, for example POP will pop an item off our runtime stack, DUP will duplicate it, HALT terminates the program, GREATER checks whether the 2nd last item on the stack is greater than the last item on the stack, same for LESS but measures if it is less than. Equal of course checks if the last 2 items on the stack are equal and pushes the result onto the stack (as do the former comparative expressions I mentioned), MUL will multiply the last 2 and push the product onto the stack, DIV same thing but for the quotient, SUB same thing but for the difference and ADD same thing but for the sum. LOAD_CONST will refer to the compiled constant table, nothing too complex there. Return will pop the current stack frame, it will also refer to the last entry in the return pointer vector we created with the opcode offset of the position where the function was called. STORE_VAR will create an entry in the current stack frame, to be clear the index after STORE_VAR is going to be the index of the actual value.
+
+LOAD_ARG is a specialized instruction for function parameter binding. It takes a count parameter specifying the number of arguments to pop from the stack. These arguments are then bound to local variable indices 0 through count-1 in the current stack frame. This ensures each function gets a fresh parameter space starting from index 0, resolving variable scoping issues with nested functions. Arguments are processed in reverse order (last argument popped becomes parameter 0) to maintain proper parameter ordering from the function call.

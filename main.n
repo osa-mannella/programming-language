@@ -1,10 +1,10 @@
 func n(a, b) {
-    func b(c,d) {
+    func v(c, d) {
+        let b = 2
         c / d
     }
-    a*b
+    v(a, b)
+    v(2, 4)
 }
 
 n(1, 2)
-
-n |> f

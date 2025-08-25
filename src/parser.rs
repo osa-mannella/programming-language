@@ -27,12 +27,7 @@ impl Parser {
         match self.current() {
             Token::Let | Token::LetBang => self.let_statement(),
             Token::Func => self.func_statement(),
-            _ => {
-                if matches!(self.current(), Token::Eof | Token::Match | Token::Enum) {
-                    return Stmt::Expr(Expr::Identifier("unimplemented".to_string()));
-                }
-                Stmt::Expr(self.expression(MIN_PREC_DEFAULT))
-            }
+            _ => Stmt::Expr(self.expression(MIN_PREC_DEFAULT)),
         }
     }
 

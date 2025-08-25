@@ -7,9 +7,10 @@ use std::fmt;
 pub enum Instruction {
     StoreVar(usize) = 0x01,
     LoadVar(usize) = 0x02,
-    Call(usize) = 0x03,
-    Return = 0x04,
-    LoadConst(usize) = 0x05,
+    LoadArg(usize) = 0x03,
+    Call(usize) = 0x04,
+    Return = 0x05,
+    LoadConst(usize) = 0x06,
     Add = 0x10,
     Sub = 0x11,
     Div = 0x12,
@@ -39,6 +40,8 @@ pub struct Compiler {
     variables: HashMap<String, usize>,
     instructions: Vec<Instruction>,
     current_function: Option<String>,
+    current_function_params: HashMap<String, usize>, // Function-local parameter mapping
+    current_param_count: usize, // Track number of parameters in current function
 }
 
 pub struct ByteCode {
@@ -56,6 +59,8 @@ impl Compiler {
             variables: HashMap::new(),
             instructions: Vec::new(),
             current_function: None,
+            current_function_params: HashMap::new(),
+            current_param_count: 0,
         }
     }
 
@@ -148,25 +153,45 @@ impl Compiler {
                 let var_index = self.get_or_create_variable_index(name);
                 self.instructions.push(Instruction::StoreVar(var_index));
             }
-            Stmt::Func {
-                name,
-                params: _,
-                body,
-            } => {
+            Stmt::Func { name, params, body } => {
+                // Jump over the function definition in main execution flow
+                let jump_over_function = self.instructions.len();
+                self.instructions.push(Instruction::Jump(0)); // Placeholder, will be patched
+
                 if let Some(function_index) = self.functions.get(name).cloned() {
                     if let Some(Value::Function { params, .. }) =
                         self.function_table.get_mut(function_index)
                     {
+                        let param_count = params.len();
                         let params = params.clone();
                         self.function_table[function_index] = Value::Function {
                             params,
-                            offset: self.instructions.len(),
+                            offset: self.instructions.len(), // Function starts here
                         };
+
+                        // Generate LOAD_ARG instruction at function entry
+                        if param_count > 0 {
+                            self.instructions.push(Instruction::LoadArg(param_count));
+                        }
                     }
                 }
 
                 let old_function = self.current_function.clone();
+                let old_params = self.current_function_params.clone();
+                let old_variables = self.variables.clone();
+                let old_param_count = self.current_param_count;
+
                 self.current_function = Some(name.clone());
+                self.current_param_count = params.len();
+
+                // Set up function parameter mapping with local indices
+                self.current_function_params.clear();
+                self.variables.clear(); // Clear variables for function scope
+
+                for (param_index, param_name) in params.iter().enumerate() {
+                    self.current_function_params
+                        .insert(param_name.clone(), param_index);
+                }
 
                 for (i, body_stmt) in body.iter().enumerate() {
                     let last = i == body.len() - 1;
@@ -175,6 +200,13 @@ impl Compiler {
 
                 self.instructions.push(Instruction::Return);
                 self.current_function = old_function;
+                self.current_function_params = old_params;
+                self.variables = old_variables;
+                self.current_param_count = old_param_count;
+
+                // Patch the jump to skip over the function
+                let after_function = self.instructions.len();
+                self.instructions[jump_over_function] = Instruction::Jump(after_function);
             }
             Stmt::Expr(expr) => {
                 self.compile_expression(expr);
@@ -269,12 +301,34 @@ impl Compiler {
     }
 
     fn get_or_create_variable_index(&mut self, name: &str) -> usize {
-        if let Some(index) = self.variables.get(name) {
-            *index
+        // First check if this is a function parameter in the current function
+        if self.current_function.is_some() {
+            if let Some(param_index) = self.current_function_params.get(name) {
+                return *param_index;
+            }
+        }
+
+        // For local variables in functions, start indexing after parameters
+        if self.current_function.is_some() {
+            // If it exists we just return the de-referenced index
+            if let Some(index) = self.variables.get(name) {
+                *index
+            } else {
+                // Local variables start from param_count to avoid conflicts
+                // Here we create the variable
+                let index = self.current_param_count + self.variables.len();
+                self.variables.insert(name.to_string(), index);
+                index
+            }
         } else {
-            let index = self.variables.len();
-            self.variables.insert(name.to_string(), index);
-            index
+            // Global scope - use standard indexing
+            if let Some(index) = self.variables.get(name) {
+                *index
+            } else {
+                let index = self.variables.len();
+                self.variables.insert(name.to_string(), index);
+                index
+            }
         }
     }
 }
@@ -284,6 +338,7 @@ impl fmt::Display for Instruction {
         match self {
             Instruction::StoreVar(idx) => write!(f, "STORE_VAR {}", idx),
             Instruction::LoadVar(idx) => write!(f, "LOAD_VAR {}", idx),
+            Instruction::LoadArg(idx) => write!(f, "LOAD_ARG {}", idx),
             Instruction::Call(idx) => write!(f, "CALL {}", idx),
             Instruction::Return => write!(f, "RETURN"),
             Instruction::LoadConst(idx) => write!(f, "LOAD_CONST {}", idx),
