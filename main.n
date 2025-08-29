@@ -4,6 +4,7 @@ func n(a, b) {
     }
     v(a, b)
     v(2, 4)
+    let x = "this is a test"
 }
 
 let r = 9

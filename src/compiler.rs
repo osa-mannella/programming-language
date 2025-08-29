@@ -178,11 +178,11 @@ impl Compiler {
 
                 self.instructions
                     .push(Instruction::StoreVar(self.depth, var_index));
+                self.instructions.push(Instruction::LoadConst(0)); // TEMP MEASURE, REPLACE THIS ONCE ENUMS ARE IMPLEMENTED PLEASE !!!
             }
             Stmt::Func { name, params, body } => {
-                // Jump over the function definition in main execution flow
                 let jump_over_function = self.instructions.len();
-                self.instructions.push(Instruction::Jump(0)); // Placeholder, will be patched
+                self.instructions.push(Instruction::Jump(0));
                 self.depth += 1;
                 if let Some(function_index) = self.functions.get(name).cloned() {
                     if let Some(Value::Function { params, .. }) =
@@ -192,10 +192,9 @@ impl Compiler {
                         let params = params.clone();
                         self.function_table[function_index] = Value::Function {
                             params,
-                            offset: self.instructions.len(), // Function starts here
+                            offset: self.instructions.len(),
                         };
 
-                        // Generate LOAD_ARG instruction at function entry
                         if param_count > 0 {
                             self.instructions.push(Instruction::LoadArg(param_count));
                         }
@@ -206,10 +205,7 @@ impl Compiler {
 
                 self.current_function = Some(name.clone());
 
-                // Set up function parameter mapping with local indices
-                //self.variables.clear(); // Clear variables for function scope
-
-                for (param_index, param_name) in params.iter().enumerate() {
+                for param_name in params.iter() {
                     self.get_or_create_variable_index(param_name);
                 }
 
@@ -222,7 +218,6 @@ impl Compiler {
                 self.instructions.push(Instruction::Return);
                 self.current_function = old_function;
 
-                // Patch the jump to skip over the function
                 let after_function = self.instructions.len();
                 self.instructions[jump_over_function] = Instruction::Jump(after_function);
             }
@@ -320,16 +315,9 @@ impl Compiler {
     }
 
     fn get_or_create_variable_index(&mut self, name: &str) -> (usize, usize) {
-        // For local variables in functions, start indexing after parameters
-        // If it exists we just return the de-referenced index
         if let Some((index, depth)) = self.get_variable(name) {
             (index, depth)
         } else {
-            // Local variables start from param_count to avoid conflicts
-            // Here we create the variable
-            if name == "a" {
-                println!("HERE");
-            }
             let index = self.insert_variable(name);
             (index, self.depth)
         }
