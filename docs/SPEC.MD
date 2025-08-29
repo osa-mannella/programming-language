@@ -1,15 +1,15 @@
-n Language
+# n Language
 
 Here I will quickly denote what is needed for the byte code setup
 
-Bytecode Spec
+## Bytecode Spec
 
-Miscellaneous Specifications
+### Miscellaneous Specifications
 The byte code will initially be made up of two passes, one will collect function definitions (to be expanded later on) and constants, the next will generate the instructions for the given ASTNodes it comes across. The byte code will consist of an array of different instructions, most of which simple in nature. Given the dynamic nature of functions they will be handled in a special way, they will be parsed on first pass where they will be the forefront of the byte code within the header, in addition their name will be stored inside a temporary transient hash map. Upon the second pass when a function is being compiled it will work as so: It will look up the name of the function in the hash map which will give the respective index of the function inside the header. We will then set the current byte offset as the indicated offset of the function per the signature. This way we optimize for runtime where we can go about exact jumps around the byte code that have been predefined.
 
 With respect to the VM and scoping we will use a simple 2 dimensional array system in order to create a stack frame system at runtime. The compilation step shouldn’t be complicated by this as it is the interpreter which handles the STORE_LOCAL byte code instruction.
 
-Bytecode Specifics
+## Bytecode Specifics
 
 Below is a table outlining the respective byte code instructions inside of n
 
@@ -46,7 +46,7 @@ HALT 0x32
 
 The initial byte code set is simple in nature but should be ample in order to begin writing an initial byte code set for n that will be expandable in the future. There are some OPCODEs I have omitted, a CALL_GLOBAL OPCODE may be in effect in a later version in order to allow for maximum runtime speed for calling native global functions instead of relying on a runtime fallback system.
 
-Interpreter
+## Interpreter
 
 With respect to the n language interpreter I want to try and keep it lean to begin, which likely says very little given such has likely been the thought of everyone who has ever decided upon writing a programming language of a fair scope. Nonetheless needless to say the VM interpreter will be entirely stack based opposed to a register based approach given the logistics of a register based approach would not provide a meaningful benefit for n. We will use a stack frame for variables and store their array index useize, revisit the line above with respect to mapping the variables to array indexes, that is what we will store in the stack frame. When we see a referenced variable we will do 2 O(n) checks on the last entry in our stackframe (to be clear our stack frame will be a 2 dimensional) array and our first entry. The first would be the global score and the last would be the local scope. That way scoping will work appropriately.
 
