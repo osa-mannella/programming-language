@@ -6,7 +6,6 @@ mod parser;
 mod types;
 
 use compiler::Compiler;
-use debug::print_tokens;
 use interpreter::VirtualMachine;
 use lexer::Lexer;
 use parser::Parser;

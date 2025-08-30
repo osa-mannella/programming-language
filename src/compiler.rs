@@ -42,6 +42,7 @@ pub struct Compiler {
     instructions: Vec<Instruction>,
     current_function: Option<String>,
     depth: usize,
+    in_new_function: bool,
 }
 
 pub struct ByteCode {
@@ -60,12 +61,18 @@ impl Compiler {
             depth: 0,
             instructions: Vec::new(),
             current_function: None,
+            in_new_function: false,
         }
     }
 
     fn insert_variable(&mut self, name: &str) -> usize {
         while self.variables.len() <= self.depth {
             self.variables.push(HashMap::new());
+        }
+
+        if self.in_new_function {
+            self.variables[self.depth].clear();
+            self.in_new_function = false;
         }
 
         let current_scope = &mut self.variables[self.depth];
@@ -76,7 +83,6 @@ impl Compiler {
     }
 
     fn get_variable(&self, name: &str) -> Option<(usize, usize)> {
-        println!("{:?}", self.variables);
         let mut result = None;
         for (depth, scope) in self.variables.iter().enumerate() {
             if depth > self.depth {
@@ -179,12 +185,14 @@ impl Compiler {
 
                 self.instructions
                     .push(Instruction::StoreVar(self.depth, var_index));
-                self.instructions.push(Instruction::LoadConst(0)); // TEMP MEASURE, REPLACE THIS ONCE ENUMS ARE IMPLEMENTED PLEASE !!!
+                self.instructions
+                    .push(Instruction::Push(Value::Number(0.0))); // TEMP MEASURE, REPLACE THIS ONCE ENUMS ARE IMPLEMENTED PLEASE !!!
             }
             Stmt::Func { name, params, body } => {
                 let jump_over_function = self.instructions.len();
                 self.instructions.push(Instruction::Jump(0));
                 self.depth += 1;
+                self.in_new_function = true;
                 if let Some(function_index) = self.functions.get(name).cloned() {
                     if let Some(Value::Function { params, .. }) =
                         self.function_table.get_mut(function_index)

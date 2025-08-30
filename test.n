@@ -2,6 +2,10 @@ func add(a, b) {
     a + b
 }
 
-let x = 10
-let y = 5
-let result = add(x, y)
+func subtract(c, d) {
+    4 - 5
+    c - d
+    let v = c + d
+}
+
+add(1, 2) |> subtract(5)

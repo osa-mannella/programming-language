@@ -2,7 +2,7 @@ use crate::compiler::{ByteCode, Instruction, Value};
 
 #[derive(Debug, Clone)]
 pub struct StackFrame {
-    variables: Vec<usize>, // Array of variable indexes for O(1) access
+    variables: Vec<Value>, // Store actual Values directly
 }
 
 impl StackFrame {
@@ -12,15 +12,18 @@ impl StackFrame {
         }
     }
 
-    pub fn set_variable(&mut self, index: usize, value_index: usize) {
-        if index >= self.variables.len() {
-            self.variables.resize(index + 1, 0);
+    pub fn set_variable(&mut self, index: usize, value: Value) {
+        // Clear naming!
+        // Extend vec with Null values if needed
+        while index >= self.variables.len() {
+            self.variables.push(Value::Number(0.0)); // You'll need to add Null to Value enum
         }
-        self.variables[index] = value_index;
+        self.variables[index] = value;
     }
 
-    pub fn get_variable(&self, index: usize) -> Option<usize> {
-        self.variables.get(index).copied()
+    pub fn get_variable(&self, index: usize) -> Option<&Value> {
+        // Return reference to Value
+        self.variables.get(index)
     }
 }
 
@@ -32,7 +35,7 @@ pub struct VirtualMachine {
     constants: Vec<Value>,
     functions: Vec<Value>,
     instructions: Vec<Instruction>,
-    global_variables: Vec<Value>, // Runtime variable storage
+    heap: Vec<Value>, // Runtime variable storage
 }
 
 impl VirtualMachine {
@@ -45,7 +48,7 @@ impl VirtualMachine {
             constants: bytecode.constants,
             functions: bytecode.functions,
             instructions: bytecode.instructions,
-            global_variables: Vec::new(),
+            heap: Vec::new(),
         };
         vm
     }
@@ -62,6 +65,10 @@ impl VirtualMachine {
 
     fn execute_instruction(&mut self) -> Result<(), String> {
         match &self.instructions[self.pc].clone() {
+            Instruction::Push(value) => {
+                self.stack.push(value.clone());
+            }
+
             Instruction::LoadConst(index) => {
                 let value = self
                     .constants
@@ -74,16 +81,11 @@ impl VirtualMachine {
             Instruction::StoreVar(depth, var_index) => {
                 let value = self.stack.pop().ok_or("Stack underflow")?;
 
-                // Store in global variables and get the storage index
-                let storage_index = self.global_variables.len();
-                self.global_variables.push(value);
-
-                // Store the storage index in current stack frame
                 let current_frame = self
                     .stack_frames
                     .last_mut()
                     .ok_or("No stack frame available")?;
-                current_frame.set_variable(*var_index, storage_index);
+                current_frame.set_variable(*var_index, value);
             }
 
             Instruction::LoadVar(depth, var_index) => {
@@ -92,27 +94,18 @@ impl VirtualMachine {
             }
 
             Instruction::LoadArg(arg_count) => {
-                // Pop arguments from stack (they were pushed in reverse order)
+                // Pop arguments from stack
                 let mut args = Vec::new();
                 for _ in 0..*arg_count {
-                    args.push(
-                        self.stack
-                            .pop()
-                            .ok_or("Not enough arguments for LOAD_ARG instruction")?,
-                    );
+                    args.push(self.stack.pop().ok_or("Not enough arguments")?);
                 }
 
-                // Get current stack frame (should be the function's frame)
-                let current_frame = self
-                    .stack_frames
-                    .last_mut()
-                    .ok_or("No stack frame available for LOAD_ARG")?;
+                // Get current frame
+                let current_frame = self.stack_frames.last_mut().ok_or("No frame")?;
 
-                // Bind arguments to local variables 0..arg_count-1 (reverse args to maintain order)
+                // Just store the VALUES directly in the frame!
                 for (param_index, arg_value) in args.iter().rev().enumerate() {
-                    let storage_index = self.global_variables.len();
-                    self.global_variables.push(arg_value.clone());
-                    current_frame.set_variable(param_index, storage_index);
+                    current_frame.set_variable(param_index, arg_value.clone()); // Store VALUE, not index!
                 }
             }
 
@@ -242,25 +235,10 @@ impl VirtualMachine {
     }
 
     fn resolve_variable(&self, var_index: usize) -> Result<Value, String> {
-        // Check local scope first (last stack frame)
-        if let Some(local_frame) = self.stack_frames.last() {
-            if let Some(storage_index) = local_frame.get_variable(var_index) {
-                return Ok(self
-                    .global_variables
-                    .get(storage_index)
-                    .ok_or("Invalid variable storage index")?
-                    .clone());
-            }
-        }
-
-        // Check global scope (first stack frame)
-        if let Some(global_frame) = self.stack_frames.first() {
-            if let Some(storage_index) = global_frame.get_variable(var_index) {
-                return Ok(self
-                    .global_variables
-                    .get(storage_index)
-                    .ok_or("Invalid variable storage index")?
-                    .clone());
+        // Iterate backwards through stack frames (current scope to global)
+        for frame in self.stack_frames.iter().rev() {
+            if let Some(value) = frame.get_variable(var_index) {
+                return Ok(value.clone());
             }
         }
 
@@ -288,7 +266,7 @@ impl VirtualMachine {
         println!("PC: {}", self.pc);
         println!("Stack: {:?}", self.stack);
         println!("Stack Frames: {}", self.stack_frames.len());
-        println!("Global Variables: {:?}", self.global_variables);
+        println!("Heap: {:?}", self.heap);
 
         if let Some(current_instruction) = self.instructions.get(self.pc) {
             println!("Next Instruction: {:?}", current_instruction);
