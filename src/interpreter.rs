@@ -1,4 +1,4 @@
-use crate::compiler::{ByteCode, Instruction, Value};
+use crate::compiler::{ByteCode, HeapObject, Instruction, Value};
 
 #[derive(Debug, Clone)]
 pub struct StackFrame {
@@ -13,8 +13,6 @@ impl StackFrame {
     }
 
     pub fn set_variable(&mut self, index: usize, value: Value) {
-        // Clear naming!
-        // Extend vec with Null values if needed
         while index >= self.variables.len() {
             self.variables.push(Value::Number(0.0)); // You'll need to add Null to Value enum
         }
@@ -35,7 +33,7 @@ pub struct VirtualMachine {
     constants: Vec<Value>,
     functions: Vec<Value>,
     instructions: Vec<Instruction>,
-    heap: Vec<Value>, // Runtime variable storage
+    heap: Vec<HeapObject>, // Runtime variable storage
 }
 
 impl VirtualMachine {

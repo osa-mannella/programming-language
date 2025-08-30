@@ -1,11 +1,1 @@
-func add(a, b) {
-    a + b
-}
-
-func subtract(c, d) {
-    4 - 5
-    c - d
-    let v = c + d
-}
-
-add(1, 2) |> subtract(5)
+let b = 1.2

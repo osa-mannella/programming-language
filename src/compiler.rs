@@ -32,6 +32,17 @@ pub enum Value {
     Number(f64),
     String(String),
     Function { params: Vec<String>, offset: usize },
+    HeapPointer(usize),
+}
+
+#[derive(Debug, Clone, PartialEq)]
+pub enum HeapObject {
+    String(String),
+    Number(f64),
+    Boolean(bool),
+    Null,
+    Array(Vec<HeapObject>),
+    Object(HashMap<String, HeapObject>),
 }
 
 pub struct Compiler {
@@ -368,6 +379,7 @@ impl fmt::Display for Value {
             Value::Function { params, offset } => {
                 write!(f, "fn({}) @{}", params.join(", "), offset)
             }
+            Value::HeapPointer(idx) => write!(f, "HEAP_POINTER {}", idx),
         }
     }
 }
