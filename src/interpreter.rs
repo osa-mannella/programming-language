@@ -58,7 +58,7 @@ impl VirtualMachine {
     fn gc(&mut self) {
         // Mark phase: Find all live objects by tracing from stack variables
         let mut marked = vec![false; self.heap.len()];
-
+        println!("Mark phase: {}", marked.len());
         for frame in &self.stack_frames {
             for value in &frame.variables {
                 if let Value::HeapPointer(idx) = value {
@@ -122,8 +122,9 @@ impl VirtualMachine {
     }
 
     pub fn run(&mut self) -> Result<(), String> {
-        while (self.pc + 1) < self.instructions.len() {
-            if self.pc % GC_CHECK_INTERVAL == 0 {
+        while self.pc < self.instructions.len() {
+            println!("PC: {}, GC_CHECK_INTERVAL: {}", self.pc, GC_CHECK_INTERVAL);
+            if (self.pc + 1) % GC_CHECK_INTERVAL == 0 {
                 let heap_score = self.heap_score();
                 if heap_score > 1000 {
                     self.gc();

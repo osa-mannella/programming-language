@@ -1,0 +1,9 @@
+// Comparison operators test
+let x = 10
+let y = 5
+let equal = x == y
+let not_equal = x != y
+let less = x < y
+let greater = x > y
+let less_equal = x <= y
+let greater_equal = x >= y

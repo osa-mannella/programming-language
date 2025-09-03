@@ -1,0 +1,27 @@
+// Edge cases and boundary conditions
+let zero = 0
+let one = 1
+let negative = -5
+let large_number = 999999.999
+
+// Division edge cases
+let div_by_one = 10 / 1
+let div_zero = 0 / 5
+
+// String edge cases
+let empty_string = ""
+let single_char = "a"
+let numbers_as_strings = "12345"
+
+// Function with no parameters
+func no_params() {
+    42
+}
+
+// Function with single parameter
+func single_param(x) {
+    x * 2
+}
+
+let result1 = no_params()
+let result2 = single_param(21)

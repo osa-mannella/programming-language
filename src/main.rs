@@ -5,6 +5,9 @@ mod lexer;
 mod parser;
 mod types;
 
+#[cfg(test)]
+mod tests;
+
 use compiler::Compiler;
 use interpreter::VirtualMachine;
 use lexer::Lexer;
@@ -40,26 +43,26 @@ fn main() {
         }
     };
 
-    println!("=== n Parser ===");
-    println!("File: {}", filename);
-    println!();
+    //println!("=== n Parser ===");
+    //println!("File: {}", filename);
+    //println!();
 
     let mut lexer = Lexer::new(source_code);
     let tokens = lexer.tokenize();
 
-    print_tokens(&tokens);
+    //print_tokens(&tokens);
 
     let mut parser = Parser::new(tokens);
     let ast = parser.parse();
 
-    println!("=== AST ===");
-    println!("{:#?}", ast);
+    //println!("=== AST ===");
+    //println!("{:#?}", ast);
 
     let mut compiler = Compiler::new();
     let bytecode = compiler.compile(&ast);
 
-    println!();
-    println!("{}", bytecode);
+    //println!();
+    //println!("{}", bytecode);
 
     println!("=== EXECUTION ===");
     let mut vm = VirtualMachine::new(bytecode);

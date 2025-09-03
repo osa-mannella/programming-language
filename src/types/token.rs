@@ -54,6 +54,5 @@ pub enum Token {
 
     // Misc
     Newline,
-    Comment(String),
     Eof,
 }

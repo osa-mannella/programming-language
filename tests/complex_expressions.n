@@ -1,0 +1,15 @@
+// Complex expression evaluation test
+let a = 10
+let b = 5
+let c = 2
+
+let result1 = (a + b) * c
+let result2 = a + (b * c)
+let result3 = (a + b) + (c * a)
+let result4 = a * b + c * a + b * c
+
+func complex_calc(x, y, z) {
+    (x + y) * z + x * y + y * z
+}
+
+let result5 = complex_calc(a, b, c)

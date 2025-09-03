@@ -1,0 +1,16 @@
+// Function definitions test
+func add(a, b) {
+    a + b
+}
+
+func multiply(x, y) {
+    x * y
+}
+
+func greet(name) {
+    "Hello " + name
+}
+
+let result1 = add(5, 3)
+let result2 = multiply(4, 6)
+let greeting = greet("World")

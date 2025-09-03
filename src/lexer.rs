@@ -167,8 +167,8 @@ impl Lexer {
                 }
 
                 Some('/') if self.peek() == Some('/') || self.peek() == Some('*') => {
-                    let comment = self.read_comment();
-                    return Token::Comment(comment);
+                    self.read_comment();
+                    continue; // Skip comments entirely
                 }
 
                 Some(ch) => {

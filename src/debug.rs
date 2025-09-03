@@ -16,7 +16,6 @@ pub fn print_token_summary(tokens: &[Token]) {
             Token::Identifier(_) => "Identifier",
             Token::String(_) => "String",
             Token::Number(_) => "Number",
-            Token::Comment(_) => "Comment",
             Token::Let => "Let",
             Token::LetBang => "LetBang",
             Token::Func => "Func",

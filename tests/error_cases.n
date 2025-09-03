@@ -1,0 +1,12 @@
+// This file should cause errors - testing error handling
+let x = 5
+let y = 0
+
+// This should cause division by zero error
+let result = x / y
+
+// This should cause undefined variable error
+let z = undefined_variable
+
+// This should cause function not found error
+let func_result = non_existent_function(1, 2, 3)

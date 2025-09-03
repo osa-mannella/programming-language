@@ -1,0 +1,17 @@
+// Nested function calls test
+func outer(x) {
+    func inner(y) {
+        x + y
+    }
+    inner(10)
+}
+
+func calculate(a, b, c) {
+    func helper(x) {
+        x * 2
+    }
+    helper(a) + helper(b) + helper(c)
+}
+
+let result1 = outer(5)
+let result2 = calculate(1, 2, 3)
