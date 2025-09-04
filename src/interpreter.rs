@@ -1,4 +1,5 @@
-use crate::compiler::{ByteCode, HeapObject, Instruction, Value};
+use crate::types::compiler::{ByteCode, HeapObject, Instruction, Value};
+use crate::types::traits::IntoResult;
 use std::collections::VecDeque;
 
 const GC_CHECK_INTERVAL: usize = 12;
@@ -174,26 +175,42 @@ impl VirtualMachine {
             }
 
             Instruction::Add => {
-                let b = self.pop_number()?;
-                let a = self.pop_number()?;
-                self.stack.push(Value::Number(a + b));
+                let b = self.stack.pop().ok_or("Stack underflow")?;
+                let a = self.stack.pop().ok_or("Stack underflow")?;
+
+                match (&a, &b) {
+                    (Value::Number(a_num), Value::Number(b_num)) => {
+                        self.stack.push(Value::Number(a_num + b_num));
+                    }
+                    (Value::String(a_str), Value::String(b_str)) => {
+                        let result = format!("{}{}", a_str, b_str);
+                        self.stack.push(Value::String(result));
+                    }
+                    _ => {
+                        return Err(format!(
+                            "Cannot add {} and {} - both operands must be the same type",
+                            a.type_name(&self.heap),
+                            b.type_name(&self.heap)
+                        ));
+                    }
+                }
             }
 
             Instruction::Sub => {
-                let b = self.pop_number()?;
-                let a = self.pop_number()?;
+                let b: f64 = self.pop_value()?;
+                let a: f64 = self.pop_value()?;
                 self.stack.push(Value::Number(a - b));
             }
 
             Instruction::Mul => {
-                let b = self.pop_number()?;
-                let a = self.pop_number()?;
+                let b: f64 = self.pop_value()?;
+                let a: f64 = self.pop_value()?;
                 self.stack.push(Value::Number(a * b));
             }
 
             Instruction::Div => {
-                let b = self.pop_number()?;
-                let a = self.pop_number()?;
+                let b: f64 = self.pop_value()?;
+                let a: f64 = self.pop_value()?;
                 if b == 0.0 {
                     return Err("Division by zero".to_string());
                 }
@@ -201,25 +218,26 @@ impl VirtualMachine {
             }
 
             Instruction::Equal => {
-                let b = self.stack.pop().ok_or("Stack underflow")?;
-                let a = self.stack.pop().ok_or("Stack underflow")?;
+                const STACK_UNDERFLOW: &str = "Stack underflow";
+                let b: Value = self.stack.pop().ok_or(STACK_UNDERFLOW)?;
+                let a: Value = self.stack.pop().ok_or(STACK_UNDERFLOW)?;
                 let result = self.values_equal(&a, &b);
                 self.stack
                     .push(Value::Number(if result { 1.0 } else { 0.0 }));
             }
 
             Instruction::Less => {
-                let b = self.pop_number()?;
-                let a = self.pop_number()?;
+                let b: f64 = self.pop_value()?;
+                let a: f64 = self.pop_value()?;
                 self.stack
-                    .push(Value::Number(if a < b { 1.0 } else { 0.0 }));
+                    .push(Value::Boolean(if a < b { true } else { false }));
             }
 
             Instruction::Greater => {
-                let b = self.pop_number()?;
-                let a = self.pop_number()?;
+                let b: f64 = self.pop_value()?;
+                let a: f64 = self.pop_value()?;
                 self.stack
-                    .push(Value::Number(if a > b { 1.0 } else { 0.0 }));
+                    .push(Value::Boolean(if a > b { true } else { false }));
             }
 
             Instruction::Jump(addr) => {
@@ -228,16 +246,16 @@ impl VirtualMachine {
             }
 
             Instruction::JumpIfFalse(addr) => {
-                let value = self.pop_number()?;
-                if value == 0.0 {
+                let value: bool = self.pop_value()?;
+                if value == false {
                     self.pc = *addr;
                     return Ok(());
                 }
             }
 
             Instruction::JumpIfTrue(addr) => {
-                let value = self.pop_number()?;
-                if value != 0.0 {
+                let value: bool = self.pop_value()?;
+                if value == true {
                     self.pc = *addr;
                     return Ok(());
                 }
@@ -332,10 +350,12 @@ impl VirtualMachine {
         Ok(())
     }
 
-    fn pop_number(&mut self) -> Result<f64, String> {
+    fn pop_value<T>(&mut self) -> Result<T, String>
+    where
+        Value: IntoResult<T>,
+    {
         match self.stack.pop() {
-            Some(Value::Number(n)) => Ok(n),
-            Some(_) => Err("Expected number on stack".to_string()),
+            Some(value) => value.into_result(),
             None => Err("Stack underflow".to_string()),
         }
     }

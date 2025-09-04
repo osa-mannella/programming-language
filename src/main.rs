@@ -59,9 +59,23 @@ pub mod runtime {
         let bytecode = compiler.compile(&ast);
 
         if debug {
-            println!("--- Bytecode ---");
-            // Assuming bytecode implements Debug or Display
-            println!("{:#?}", bytecode);
+            println!("--- Bytecode ---\n");
+            if bytecode.functions.len() > 0 {
+                println!("--- Functions ---");
+                for function in bytecode.functions.iter() {
+                    println!("{}", function);
+                }
+            }
+            if bytecode.constants.len() > 0 {
+                println!("--- Constants ---");
+                for constant in bytecode.constants.iter() {
+                    println!("{}", constant);
+                }
+            }
+            println!("--- Instructions ---");
+            for instruction in bytecode.instructions.iter() {
+                println!("{}", instruction);
+            }
         }
 
         let mut vm = VirtualMachine::new(bytecode);
@@ -72,15 +86,11 @@ pub mod runtime {
 
         match vm.run() {
             Ok(()) => {
-                if debug {
-                    println!("Program executed successfully");
-                }
-                Ok("Program executed successfully".to_string())
+                vm.debug_stack();
+                Ok("Successfully executed program".to_string())
             }
             Err(e) => {
-                if debug {
-                    println!("Runtime error: {}", e);
-                }
+                vm.debug_stack();
                 Err(format!("Runtime error: {}", e))
             }
         }

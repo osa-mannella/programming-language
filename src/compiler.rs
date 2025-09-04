@@ -2,49 +2,7 @@ use crate::types::ast::*;
 use std::collections::HashMap;
 use std::fmt;
 
-#[repr(u8)]
-#[derive(Debug, Clone, PartialEq)]
-pub enum Instruction {
-    StoreVar(usize, usize) = 0x01,
-    LoadVar(usize, usize) = 0x02,
-    LoadArg(usize) = 0x03,
-    Call(usize) = 0x04,
-    Return = 0x05,
-    LoadConst(usize) = 0x06,
-    Add = 0x10,
-    Sub = 0x11,
-    Div = 0x12,
-    Mul = 0x13,
-    Equal = 0x14,
-    Less = 0x15,
-    Greater = 0x16,
-    Jump(usize) = 0x20,
-    JumpIfFalse(usize) = 0x21,
-    JumpIfTrue(usize) = 0x22,
-    Pop = 0x30,
-    Push(Value) = 0x31,
-    Dup = 0x32,
-    Halt = 0x33,
-}
-
-#[derive(Debug, Clone, PartialEq)]
-pub enum Value {
-    Number(f64),
-    String(String),
-    Boolean(bool),
-    Function { params: Vec<String>, offset: usize },
-    HeapPointer(usize),
-}
-
-#[derive(Debug, Clone, PartialEq)]
-pub enum HeapObject {
-    String(String),
-    Number(f64),
-    Boolean(bool),
-    Null,
-    Array(Vec<HeapObject>),
-    Object(HashMap<String, HeapObject>),
-}
+use crate::types::compiler::*;
 
 pub struct Compiler {
     constants: Vec<Value>,
@@ -55,13 +13,6 @@ pub struct Compiler {
     current_function: Option<String>,
     depth: usize,
     in_new_function: bool,
-}
-
-#[derive(Debug, Clone, PartialEq)]
-pub struct ByteCode {
-    pub constants: Vec<Value>,
-    pub functions: Vec<Value>,
-    pub instructions: Vec<Instruction>,
 }
 
 impl Compiler {
@@ -209,8 +160,10 @@ impl Compiler {
 
                 self.instructions
                     .push(Instruction::StoreVar(self.depth, var_index));
-                self.instructions
-                    .push(Instruction::Push(Value::Number(0.0))); // TEMP MEASURE, REPLACE THIS ONCE ENUMS ARE IMPLEMENTED PLEASE !!!
+                if last {
+                    self.instructions
+                        .push(Instruction::Push(Value::Number(0.0))); // TEMP MEASURE, REPLACE THIS ONCE ENUMS ARE IMPLEMENTED PLEASE !!!
+                }
             }
             Stmt::Func { name, params, body } => {
                 let jump_over_function = self.instructions.len();
