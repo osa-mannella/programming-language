@@ -66,3 +66,16 @@ Beloved Async, the async parts of n will operate based on something called a Fra
 ## User Interop
 
 I want to allow other developers to write low level modules for n using Rust if they want to do advanced syscalls instead of having them hard coded into the interpreter. Hypothetically if n allowed that (the writing of external functions in Rust) it would need a way to take the arguments pushed onto the stack from the n interpreter and to actually grab them and get their value to call the user written Rust function, then when n returns it would need to actually push their returned value onto the n stack so that they could pass data in and the function could output data into the n runtime. This will require the compilation step such that the written rustcode is compiled to a .dll or .so then dynamically linked and the function calling has appropriate calling and argument passing that will be ideally handled mostly at compile time with some small logsitics at runtime but this will be fully thought out and implemented much later down the line.
+
+## Syntax
+
+In n, when a pipeline begins with a call to a module function (e.g. `HTTP.listen(port)`), that module’s functions are implicitly lifted into scope for the duration of the pipeline chain. This allows subsequent calls like `route(...)` and `start()` to be resolved as `HTTP.route(...)` and `HTTP.start(...)` without repeating the module prefix. Semantically, the pipeline still desugars to fully qualified calls with the left-hand value threaded as the first argument. This rule applies only within the pipeline chain rooted in the module call, ensuring clear ownership of functions while keeping pipelines concise and expressive.
+
+Here is a simple example that can be found on our documentation website that demonstrates this feature effectively
+
+```n
+HTTP.listen(port)
+  |> route( "/api" , api_handler)
+  |> route( "/" , static_files)
+  |> start()
+```
