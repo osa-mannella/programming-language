@@ -4,6 +4,10 @@ pub enum Expr {
     Number(f64),
     String(String),
     Boolean(bool),
+    Update {
+        left: Box<Expr>,
+        right: Box<Expr>,
+    },
     Unary {
         op: UnaryOp,
         right: Box<Expr>,

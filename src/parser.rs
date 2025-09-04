@@ -188,6 +188,15 @@ impl Parser {
                     right: Box::new(right),
                 }
             }
+            Token::Update => {
+                self.advance();
+                // Make update right-associative: parse RHS with same precedence
+                let right = self.expression(self.precedence(true));
+                Expr::Update {
+                    left: Box::new(left),
+                    right: Box::new(right),
+                }
+            }
             _ => left,
         }
     }
@@ -210,7 +219,7 @@ impl Parser {
 
     fn precedence(&self, right_parse: bool) -> u8 {
         match self.current() {
-            Token::Pipeline => Precedence::Pipeline.as_u8(),
+            Token::Pipeline | Token::Update => Precedence::Pipeline.as_u8(),
             Token::Equal
             | Token::NotEqual
             | Token::Less
@@ -224,7 +233,9 @@ impl Parser {
             | Token::Number(_)
             | Token::Identifier(_)
             | Token::True
-            | Token::False => {
+            | Token::False
+            | Token::LeftBracket
+            | Token::LeftBrace => {
                 if right_parse {
                     return Precedence::Lowest.as_u8();
                 } else {

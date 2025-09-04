@@ -1,1 +1,1 @@
-let n = !true
+let n = !true []

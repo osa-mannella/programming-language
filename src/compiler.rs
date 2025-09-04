@@ -148,6 +148,10 @@ impl Compiler {
             Expr::Unary { right, .. } => {
                 self.collect_constants_from_expr(right);
             }
+            Expr::Update { left, right } => {
+                self.collect_constants_from_expr(left);
+                self.collect_constants_from_expr(right);
+            }
             Expr::Array { elements } => {
                 for element in elements {
                     self.collect_constants_from_expr(element);
@@ -337,6 +341,12 @@ impl Compiler {
                     self.push(Instruction::Not);
                 }
             },
+            Expr::Update { left, right } => {
+                // Placeholder semantics: compile children and discard; to be implemented
+                self.compile_expression(left)?;
+                self.compile_expression(right)?;
+                self.push(Instruction::Pop);
+            }
             Expr::Array { elements } => {
                 for element in elements.iter() {
                     self.compile_expression(element)?;
