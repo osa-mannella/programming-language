@@ -38,6 +38,7 @@ cargo test --release
 - **`heap_stress.n`** - Heap allocation and garbage collection
 - **`edge_cases.n`** - Edge cases and boundary conditions
 - **`nested_functions.n`** - Nested function definitions
+- **`array_operations.n`** - Array creation and manipulation
 - **`error_cases.n`** - Error conditions (should fail)
 
 ## Test Categories
@@ -49,6 +50,7 @@ cargo test --release
 - Complex expressions
 - Heap stress testing
 - Nested functions
+- Array creation and operations
 - Error detection
 
 ### 🔧 Currently Failing (Expected)

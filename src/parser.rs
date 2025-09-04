@@ -107,6 +107,35 @@ impl Parser {
                     right: Box::new(right),
                 }
             }
+            Token::LeftBracket => {
+                let mut elements = Vec::new();
+
+                // Handle empty array
+                if matches!(self.current(), Token::RightBracket) {
+                    self.advance();
+                    return Expr::Array { elements };
+                }
+
+                // Parse array elements [expr, expr, ...]
+                loop {
+                    elements.push(self.expression(Precedence::Pipeline.as_u8()));
+
+                    match self.current() {
+                        Token::Comma => {
+                            self.advance();
+                            // Allow trailing comma [1, 2, 3,]
+                            if matches!(self.current(), Token::RightBracket) {
+                                break;
+                            }
+                        }
+                        Token::RightBracket => break,
+                        _ => panic!("Expected ',' or ']' in array literal"),
+                    }
+                }
+
+                self.expect(Token::RightBracket);
+                Expr::Array { elements }
+            }
             Token::True => Expr::Boolean(true),
             Token::False => Expr::Boolean(false),
             t => {
@@ -208,6 +237,10 @@ impl Parser {
 
     fn current(&self) -> &Token {
         self.tokens.get(self.pos).unwrap_or(&Token::Eof)
+    }
+
+    fn peek(&self) -> Option<&Token> {
+        self.tokens.get(self.pos + 1)
     }
 
     fn advance(&mut self) -> Token {

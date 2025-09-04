@@ -1,0 +1,25 @@
+// Array creation and basic operations test
+
+// Test empty array creation
+let empty = []
+
+// Test array with numbers
+let numbers = [1, 2, 3]
+
+// Test array with mixed types
+let mixed = [1, "hello", true]
+
+// Test array with single element
+let single = [42]
+
+// Test array with trailing comma
+let trailing = [1, 2, 3,]
+
+// Test nested expressions in arrays
+let expressions = [1 + 2, 3 * 4, 5 - 1]
+
+// Test boolean arrays
+let booleans = [true, false, !true]
+
+// Test string arrays  
+let strings = ["first", "second", "third"]

@@ -21,6 +21,9 @@ pub enum Expr {
         left: Box<Expr>,
         right: Box<Expr>,
     },
+    Array {
+        elements: Vec<Expr>,
+    },
 }
 
 #[derive(Debug, Clone)]

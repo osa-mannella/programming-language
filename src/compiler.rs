@@ -148,6 +148,11 @@ impl Compiler {
             Expr::Unary { right, .. } => {
                 self.collect_constants_from_expr(right);
             }
+            Expr::Array { elements } => {
+                for element in elements {
+                    self.collect_constants_from_expr(element);
+                }
+            }
             Expr::Identifier(_) => {}
         }
     }
@@ -332,6 +337,12 @@ impl Compiler {
                     self.push(Instruction::Not);
                 }
             },
+            Expr::Array { elements } => {
+                for element in elements.iter() {
+                    self.compile_expression(element)?;
+                }
+                self.push(Instruction::CreateArray(elements.len()));
+            }
         }
         Ok(())
     }
@@ -401,6 +412,7 @@ impl fmt::Display for Instruction {
             Instruction::Less => write!(f, "LESS"),
             Instruction::Greater => write!(f, "GREATER"),
             Instruction::Not => write!(f, "NOT"),
+            Instruction::CreateArray(size) => write!(f, "CREATE_ARRAY {}", size),
             Instruction::Jump(addr) => write!(f, "JUMP {}", addr),
             Instruction::JumpIfFalse(addr) => write!(f, "JUMP_IF_FALSE {}", addr),
             Instruction::JumpIfTrue(addr) => write!(f, "JUMP_IF_TRUE {}", addr),

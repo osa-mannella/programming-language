@@ -267,6 +267,20 @@ impl VirtualMachine {
                 }
             }
 
+            Instruction::CreateArray(size) => {
+                let mut elements = Vec::new();
+                for _ in 0..*size {
+                    let element = self.stack.pop().ok_or(UNDERFLOW_ERROR)?;
+                    elements.push(self.value_to_heap_object(element));
+                }
+                elements.reverse();
+
+                let heap_array = HeapObject::Array(elements);
+                self.heap.push(heap_array);
+                let heap_index = self.heap.len() - 1;
+                self.stack.push(Value::HeapPointer(heap_index));
+            }
+
             Instruction::Jump(addr) => {
                 self.pc = *addr;
                 return Ok(());
@@ -414,5 +428,15 @@ impl VirtualMachine {
             println!("Next Instruction: {:?}", current_instruction);
         }
         println!("================");
+    }
+
+    fn value_to_heap_object(&self, value: Value) -> HeapObject {
+        match value {
+            Value::Number(n) => HeapObject::Number(n),
+            Value::String(s) => HeapObject::String(s),
+            Value::Boolean(b) => HeapObject::Boolean(b),
+            Value::HeapPointer(_) => HeapObject::Null, // Could preserve references, but simplify for now
+            Value::Function { .. } => HeapObject::Null, // Functions can't go in arrays yet
+        }
     }
 }

@@ -17,6 +17,7 @@ pub enum Instruction {
     Less = 0x15,
     Greater = 0x16,
     Not = 0x17,
+    CreateArray(usize) = 0x18, // Create array with N elements from stack
     Jump(usize) = 0x20,
     JumpIfFalse(usize) = 0x21,
     JumpIfTrue(usize) = 0x22,

@@ -128,4 +128,14 @@ mod tests {
             result.output
         );
     }
+
+    #[test]
+    fn test_array_operations() {
+        let result = run_n_file("tests/array_operations.n");
+        assert!(
+            result.passed,
+            "Array operations test failed: {}",
+            result.output
+        );
+    }
 }
